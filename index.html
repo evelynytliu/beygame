@@ -81,6 +81,33 @@
         .launch-instruction { color: white; font-family: 'Orbitron'; margin-bottom: 20px; text-shadow: 0 0 5px black; font-size: 1.2rem; animation: pulse 1.5s infinite; }
 
         @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+
+        /* Spin Meters */
+        #spin-meters { position: absolute; bottom: 20px; left: 0; width: 100%; display: flex; justify-content: center; gap: 20px; z-index: 20; pointer-events: none; }
+        .spin-bar-wrap { width: 35%; max-width: 200px; }
+        .spin-bar-label { font-family: 'Orbitron', sans-serif; font-size: 0.6rem; margin-bottom: 3px; letter-spacing: 1px; }
+        .spin-bar-bg { height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; }
+        .spin-bar-fill { height: 100%; border-radius: 4px; transition: width 0.1s; }
+        .spin-bar-fill.player { background: var(--primary); box-shadow: 0 0 8px var(--primary); }
+        .spin-bar-fill.enemy { background: var(--secondary); box-shadow: 0 0 8px var(--secondary); }
+        .spin-bar-fill.critical { animation: barPulse 0.5s infinite; }
+        @keyframes barPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+        /* Tilt Indicator */
+        #tilt-indicator { position: absolute; bottom: 60px; right: 20px; width: 60px; height: 60px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.15); z-index: 20; pointer-events: none; display: none; }
+        #tilt-dot { width: 10px; height: 10px; background: var(--primary); border-radius: 50%; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); box-shadow: 0 0 6px var(--primary); }
+        #tilt-stamina-ring { position: absolute; top: -3px; left: -3px; width: 66px; height: 66px; border-radius: 50%; border: 2px solid transparent; border-top-color: var(--primary); transition: opacity 0.3s; }
+
+        /* Battle Timer */
+        #battle-timer { position: absolute; top: 50px; left: 50%; transform: translateX(-50%); font-family: 'Orbitron', sans-serif; font-size: 0.8rem; color: rgba(255,255,255,0.4); z-index: 20; pointer-events: none; }
+
+        /* Launch Arrow */
+        #launch-arrow { position: absolute; top: 40%; left: 50%; width: 4px; height: 80px; transform-origin: bottom center; transform: translateX(-50%) rotate(0deg); pointer-events: none; z-index: 26; opacity: 0; transition: opacity 0.2s; }
+        #launch-arrow::after { content: ''; position: absolute; top: -10px; left: -8px; border-left: 10px solid transparent; border-right: 10px solid transparent; border-bottom: 15px solid var(--primary); }
+        #launch-arrow { background: linear-gradient(to top, transparent, var(--primary)); }
+
+        /* Stats on result */
+        .result-stats { font-size: 0.75rem; color: #888; margin-top: 8px; }
     </style>
 </head>
 <body>
@@ -93,9 +120,28 @@
         <div class="hud-text" style="color:var(--secondary)">ENEMY LV.<span id="hud-lvl">1</span></div>
     </div>
 
+    <div id="spin-meters" class="hidden">
+        <div class="spin-bar-wrap">
+            <div class="spin-bar-label" style="color:var(--primary)">YOU</div>
+            <div class="spin-bar-bg"><div class="spin-bar-fill player" id="spin-bar-p" style="width:100%"></div></div>
+        </div>
+        <div class="spin-bar-wrap" style="text-align:right">
+            <div class="spin-bar-label" style="color:var(--secondary); text-align:right">ENEMY</div>
+            <div class="spin-bar-bg"><div class="spin-bar-fill enemy" id="spin-bar-e" style="width:100%"></div></div>
+        </div>
+    </div>
+
+    <div id="tilt-indicator">
+        <div id="tilt-dot"></div>
+        <div id="tilt-stamina-ring"></div>
+    </div>
+
+    <div id="battle-timer" class="hidden">0:00</div>
+    <div id="launch-arrow"></div>
+
     <!-- Launch UI -->
     <div id="launch-overlay" class="hidden">
-        <div class="launch-instruction">下拉手把發射！ (Pull & Release)</div>
+        <div class="launch-instruction">下拉發射，左右拖曳瞄準方向！</div>
         <div id="launch-handle-zone">
             <div class="ripcord-knob"></div>
         </div>
@@ -178,6 +224,7 @@
         <div id="screen-result" class="screen hidden">
             <h1 id="result-title">VICTORY</h1>
             <p id="result-sub">結果</p>
+            <div class="result-stats" id="result-stats"></div>
             <button class="btn" onclick="goToLaunch()">再次挑戰</button>
             <button class="btn secondary" onclick="backToDraw()">畫新的</button>
         </div>
@@ -218,19 +265,83 @@
         },
         playWall: function() { this.playTone(300, 'sine', 0.1, 0.1); },
         playWin: function() { [523, 659, 783, 1046].forEach((f, i) => setTimeout(() => this.playTone(f, 'triangle', 0.4, 0.2), i * 150)); },
-        playLose: function() { [440, 415, 392, 349].forEach((f, i) => setTimeout(() => this.playTone(f, 'sawtooth', 0.5, 0.2), i * 200)); }
+        playLose: function() { [440, 415, 392, 349].forEach((f, i) => setTimeout(() => this.playTone(f, 'sawtooth', 0.5, 0.2), i * 200)); },
+        // New: grinding sound for sustained contact
+        playGrind: function(intensity) {
+            if (!this.ctx) return;
+            const t = this.ctx.currentTime;
+            const bufSize = 2 * this.ctx.sampleRate;
+            if (!this._noiseBuffer) {
+                this._noiseBuffer = this.ctx.createBuffer(1, bufSize, this.ctx.sampleRate);
+                const d = this._noiseBuffer.getChannelData(0);
+                for (let i = 0; i < bufSize; i++) d[i] = Math.random() * 2 - 1;
+            }
+            const src = this.ctx.createBufferSource(); src.buffer = this._noiseBuffer;
+            const filt = this.ctx.createBiquadFilter(); filt.type = 'bandpass'; filt.frequency.value = 800 + intensity * 400; filt.Q.value = 2;
+            const gain = this.ctx.createGain(); gain.gain.setValueAtTime(Math.min(intensity * 0.04, 0.08), t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+            src.connect(filt); filt.connect(gain); gain.connect(this.ctx.destination);
+            src.start(t); src.stop(t + 0.15);
+        },
+        // New: edge warning rumble
+        playEdgeWarn: function() { this.playTone(60, 'sine', 0.2, 0.06); },
+        // Spin hum oscillator management
+        _spinHum: null,
+        _spinHumGain: null,
+        updateSpinHum: function(spinMag) {
+            if (!this.ctx) return;
+            if (!this._spinHum) {
+                this._spinHum = this.ctx.createOscillator();
+                this._spinHumGain = this.ctx.createGain();
+                this._spinHum.type = 'sine';
+                this._spinHum.frequency.value = 80;
+                this._spinHumGain.gain.value = 0;
+                this._spinHum.connect(this._spinHumGain);
+                this._spinHumGain.connect(this.ctx.destination);
+                this._spinHum.start();
+            }
+            const freq = 60 + spinMag * 200;
+            const vol = Math.min(spinMag * 0.06, 0.04);
+            this._spinHum.frequency.setTargetAtTime(freq, this.ctx.currentTime, 0.1);
+            this._spinHumGain.gain.setTargetAtTime(vol, this.ctx.currentTime, 0.1);
+        },
+        stopSpinHum: function() {
+            if (this._spinHumGain) this._spinHumGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.1);
+        }
     };
 
     // --- Config & State ---
     let settings = { restitution: 0.8, forceMult: 1.2, gravity: 1.0 };
     let state = { screen: 'DRAW', level: 1, pColor: '#00f3ff', pTool: 'pen', pBrushSize: 10, pStats: { mass: 1, friction: 0.996, radius: 1 }, roundStartTime: 0 };
-    
+
     let scene, camera, renderer, arenaMesh, barrierMesh;
     let playerMesh, enemyMesh;
     let playerGroups = { root: null, tilt: null, spin: null };
     let enemyGroups = { root: null, tilt: null, spin: null };
 
     let particles = [], objects = [];
+
+    // Camera shake system
+    let shakeIntensity = 0;
+    let cameraZoomOffset = 0; // negative = zoom in
+
+    // Time scale for slow-mo
+    let timeScale = 1.0;
+    let timeScaleTarget = 1.0;
+
+    // Arena tilt system
+    let arenaTilt = { x: 0, z: 0 };
+    let tiltStamina = 100; // 0-100
+    let tiltActive = false;
+
+    // Trail system
+    let trailBuffers = [[], []]; // ring buffers for each top
+
+    // Persistence
+    const saveData = JSON.parse(localStorage.getItem('beyGame') || '{"wins":0,"losses":0,"streak":0,"maxLevel":0}');
+
+    // Impact flash meshes
+    let flashMeshes = [];
     
     // Increased Arena Size (36 -> 42)
     const ARENA_RADIUS = 42;
@@ -244,12 +355,15 @@
 
     // Launch Vars
     let launchStartY = 0;
+    let launchStartX = 0;
     let launchPower = 0;
+    let launchAngle = 0; // radians, 0 = straight forward
     let isCharging = false;
 
     document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('button, input, .color-swatch, .tool-btn').forEach(el => el.addEventListener('click', () => AudioSys.playClick()));
         setupLaunchControls();
+        setupArenaTiltControls();
     });
 
     window.onload = () => { initThreeJS(); initDrawing(); animate(); };
@@ -257,26 +371,36 @@
     // --- Launch System ---
     function setupLaunchControls() {
         const handle = document.getElementById('launch-handle-zone');
+        const arrow = document.getElementById('launch-arrow');
         const startCharge = (e) => {
             isCharging = true;
-            launchStartY = e.touches ? e.touches[0].clientY : e.clientY;
+            const touch = e.touches ? e.touches[0] : e;
+            launchStartY = touch.clientY;
+            launchStartX = touch.clientX;
+            launchAngle = 0;
+            arrow.style.opacity = '0.8';
             AudioSys.init();
         };
         const moveCharge = (e) => {
             if(!isCharging) return;
             e.preventDefault();
-            const y = e.touches ? e.touches[0].clientY : e.clientY;
-            const delta = Math.max(0, y - launchStartY);
-            launchPower = Math.min(delta / 200, 1.0); 
-            
-            handle.style.transform = `translateY(${delta * 0.5}px) scale(${1 + launchPower * 0.2})`;
+            const touch = e.touches ? e.touches[0] : e;
+            const dy = Math.max(0, touch.clientY - launchStartY);
+            const dx = touch.clientX - launchStartX;
+            launchPower = Math.min(dy / 200, 1.0);
+            launchAngle = Math.max(-1.2, Math.min(1.2, dx / 150)); // clamp angle
+
+            handle.style.transform = `translateY(${dy * 0.5}px) scale(${1 + launchPower * 0.2})`;
+            arrow.style.transform = `translateX(-50%) rotate(${launchAngle * 40}deg)`;
+            arrow.style.height = `${40 + launchPower * 60}px`;
             if (Math.random() > 0.8) AudioSys.playCharge(launchPower * 100);
         };
         const endCharge = () => {
             if(!isCharging) return;
             isCharging = false;
             handle.style.transform = 'translateY(0) scale(1)';
-            if (launchPower > 0.2) startRound(launchPower);
+            arrow.style.opacity = '0';
+            if (launchPower > 0.2) startRound(launchPower, launchAngle);
             else launchPower = 0;
         };
 
@@ -294,8 +418,42 @@
         document.getElementById('hud').classList.remove('hidden');
         document.getElementById('hud-lvl').innerText = state.level;
         document.getElementById('launch-overlay').classList.remove('hidden');
+        document.getElementById('spin-meters').classList.add('hidden');
+        document.getElementById('battle-timer').classList.add('hidden');
+        document.getElementById('tilt-indicator').style.display = 'none';
         resetSceneForLaunch();
         showMsg("READY", 0, "white");
+    }
+
+    // Arena tilt controls during battle
+    function setupArenaTiltControls() {
+        const canvas = document.getElementById('game-canvas');
+        let tiltTouchActive = false;
+        const onTiltStart = (e) => {
+            if (state.screen !== 'PLAY') return;
+            tiltTouchActive = true;
+        };
+        const onTiltMove = (e) => {
+            if (state.screen !== 'PLAY' || !tiltTouchActive) return;
+            if (tiltStamina <= 0) { arenaTilt.x = 0; arenaTilt.z = 0; return; }
+            const touch = e.touches ? e.touches[0] : e;
+            const cx = window.innerWidth / 2, cy = window.innerHeight / 2;
+            const maxTilt = 0.006;
+            arenaTilt.x = ((touch.clientY - cy) / cy) * maxTilt;
+            arenaTilt.z = ((touch.clientX - cx) / cx) * maxTilt;
+            tiltActive = true;
+        };
+        const onTiltEnd = () => {
+            tiltTouchActive = false;
+            tiltActive = false;
+            arenaTilt.x = 0; arenaTilt.z = 0;
+        };
+        canvas.addEventListener('mousedown', onTiltStart);
+        canvas.addEventListener('mousemove', onTiltMove);
+        canvas.addEventListener('mouseup', onTiltEnd);
+        canvas.addEventListener('touchstart', onTiltStart, {passive: true});
+        canvas.addEventListener('touchmove', onTiltMove, {passive: true});
+        canvas.addEventListener('touchend', onTiltEnd);
     }
 
     // --- Logic ---
@@ -517,7 +675,16 @@
         switchScreen('screen-level'); AudioSys.init();
     }
     function backToDraw() { switchScreen('screen-draw'); }
-    function switchScreen(id) { document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden')); document.getElementById('hud').classList.add('hidden'); document.getElementById('launch-overlay').classList.add('hidden'); if(id) document.getElementById(id).classList.remove('hidden'); }
+    function switchScreen(id) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+        document.getElementById('hud').classList.add('hidden');
+        document.getElementById('launch-overlay').classList.add('hidden');
+        document.getElementById('spin-meters').classList.add('hidden');
+        document.getElementById('battle-timer').classList.add('hidden');
+        document.getElementById('tilt-indicator').style.display = 'none';
+        AudioSys.stopSpinHum();
+        if (id) document.getElementById(id).classList.remove('hidden');
+    }
 
     function createGroupStructure() {
         const root = new THREE.Group();
@@ -598,32 +765,49 @@
         barrierMesh.material.opacity = 0.3; 
     }
 
-    function startRound(power) {
+    function startRound(power, angle) {
+        angle = angle || 0;
         document.getElementById('launch-overlay').classList.add('hidden');
+        document.getElementById('spin-meters').classList.remove('hidden');
+        document.getElementById('battle-timer').classList.remove('hidden');
+        document.getElementById('tilt-indicator').style.display = 'block';
         showMsg("GO SHOOT!", 800, "var(--primary)"); AudioSys.playGo();
         state.screen = 'PLAY'; state.roundStartTime = Date.now();
         objects = [];
+        trailBuffers = [[], []];
+        timeScale = 1.0; timeScaleTarget = 1.0;
+        shakeIntensity = 0; cameraZoomOffset = 0;
+        tiltStamina = 100; tiltActive = false;
+        arenaTilt.x = 0; arenaTilt.z = 0;
 
-        const startDist = 22; // Increased spawn distance for larger arena
-        const effectivePower = Math.max(0.4, power); 
+        // Clean up old trails
+        scene.children.forEach(c => { if (c.userData.isTrail) scene.remove(c); });
+
+        const startDist = 22;
+        const effectivePower = Math.max(0.4, power);
+        const launchSpeed = 0.5 + effectivePower * 0.4;
 
         // Player: Positive Spin (Clockwise visual)
-        objects.push({ 
-            groups: playerGroups, x: -startDist, z: 0, vx: 0.7, vz: 0, 
-            mass: state.pStats.mass, radius: state.pStats.radius, 
-            friction: state.pStats.friction, 
-            isPlayer: true, spin: MAX_SPIN * (0.5 + effectivePower * 0.6) 
+        objects.push({
+            groups: playerGroups, x: -startDist, z: angle * 8,
+            vx: launchSpeed * Math.cos(angle), vz: launchSpeed * Math.sin(angle),
+            mass: state.pStats.mass, radius: state.pStats.radius,
+            friction: state.pStats.friction,
+            isPlayer: true, spin: MAX_SPIN * (0.5 + effectivePower * 0.6),
+            precessionAngle: 0, nutation: 0, tiltAmplitude: 0
         });
-        
-        // Enemy: Negative Spin (Counter-Clockwise visual)
-        // Adjusted base friction to be beatable (e.g., 0.993 base instead of 0.994)
-        const eFric = 0.993 + (state.level * 0.0003); 
-        objects.push({ 
-            groups: enemyGroups, x: startDist, z: 0, vx: -0.7, vz: 0, 
-            mass: 2.0 + (state.level * 0.3), radius: 4.5 + (state.level * 0.2), 
+
+        // Enemy: Negative Spin
+        const eFric = 0.993 + (state.level * 0.0003);
+        const aiType = state.level <= 3 ? 'aggressive' : state.level <= 6 ? 'defensive' : state.level <= 9 ? 'strategic' : 'boss';
+        objects.push({
+            groups: enemyGroups, x: startDist, z: 0, vx: -0.7, vz: 0,
+            mass: 2.0 + (state.level * 0.3), radius: 4.5 + (state.level * 0.2),
             friction: eFric,
-            moveSpeed: 0.03 + (state.level * 0.005), 
-            isPlayer: false, spin: -MAX_SPIN // OPPOSITE SPIN
+            moveSpeed: 0.03 + (state.level * 0.005),
+            isPlayer: false, spin: -MAX_SPIN,
+            precessionAngle: 0, nutation: 0, tiltAmplitude: 0,
+            aiType: aiType, aiState: 'pursue', aiBurstCooldown: 0
         });
 
         camera.position.set(0, 85, 120); camera.lookAt(0,0,0);
@@ -639,114 +823,321 @@
     function physicsStep() {
         if(state.screen !== 'PLAY') return;
 
+        // Time scale smooth lerp
+        timeScale += (timeScaleTarget - timeScale) * 0.05;
+        const ts = timeScale;
+
         const timeElapsed = Date.now() - state.roundStartTime;
         const safetyPhase = timeElapsed < 1500;
-        
+
         if (safetyPhase) barrierMesh.material.opacity = 0.3;
         else barrierMesh.material.opacity = 0.05;
 
+        // Update tilt stamina
+        if (tiltActive && tiltStamina > 0) {
+            tiltStamina = Math.max(0, tiltStamina - 0.6 * ts);
+        } else if (!tiltActive && tiltStamina < 100) {
+            tiltStamina = Math.min(100, tiltStamina + 0.25 * ts);
+        }
+        if (tiltStamina <= 0) { arenaTilt.x = 0; arenaTilt.z = 0; }
+
+        // Update tilt indicator
+        const tiltDot = document.getElementById('tilt-dot');
+        const tiltRing = document.getElementById('tilt-stamina-ring');
+        if (tiltDot) {
+            const maxOff = 20;
+            tiltDot.style.left = (50 + arenaTilt.z / 0.006 * maxOff) + '%';
+            tiltDot.style.top = (50 + arenaTilt.x / 0.006 * maxOff) + '%';
+        }
+        if (tiltRing) tiltRing.style.opacity = tiltStamina / 100;
+
+        // Update battle timer
+        const timerEl = document.getElementById('battle-timer');
+        const secs = Math.floor(timeElapsed / 1000);
+        timerEl.innerText = Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0');
+
+        // Update spin hum with average spin
+        const avgSpin = objects.length >= 2 ? (Math.abs(objects[0].spin) + Math.abs(objects[1].spin)) / 2 : 0;
+        AudioSys.updateSpinHum(avgSpin);
+
         objects.forEach((obj, idx) => {
-            obj.x += obj.vx; obj.z += obj.vz;
-            
-            const dist = Math.sqrt(obj.x*obj.x + obj.z*obj.z);
-            if(dist > 1) {
-                // Steeper gravity for larger arena
-                let slope = dist < 12 ? 0.003 : 0.009; 
-                slope *= settings.gravity;
-                obj.vx -= (obj.x / dist) * slope; obj.vz -= (obj.z / dist) * slope;
+            obj.x += obj.vx * ts; obj.z += obj.vz * ts;
+
+            // 1.2: Improved bowl curvature physics - force from surface normal
+            const dist = Math.sqrt(obj.x * obj.x + obj.z * obj.z);
+            if (dist > 0.5) {
+                const slopeForce = (dist / BOWL_RADIUS) * 0.08 * settings.gravity;
+                obj.vx -= (obj.x / dist) * slopeForce * ts;
+                obj.vz -= (obj.z / dist) * slopeForce * ts;
             }
-            
+
+            // 2.2: Arena tilt gravity bias
+            obj.vx += arenaTilt.x * ts;
+            obj.vz += arenaTilt.z * ts;
+
+            // Edge warning sound
+            if (dist > ARENA_RADIUS * 0.85 && !safetyPhase && Math.random() > 0.95) {
+                AudioSys.playEdgeWarn();
+            }
+
+            // Wall collision during safety
             if (safetyPhase && dist > (ARENA_RADIUS - 1.5)) {
                 const nx = -obj.x / dist; const nz = -obj.z / dist;
                 const dot = obj.vx * nx + obj.vz * nz;
                 if (dot < 0) {
-                    const bounce = settings.restitution; 
+                    const bounce = settings.restitution;
                     obj.vx = obj.vx - (1 + bounce) * dot * nx;
                     obj.vz = obj.vz - (1 + bounce) * dot * nz;
                     obj.x += nx * 0.5; obj.z += nz * 0.5;
-                    AudioSys.playWall(); createSparks(obj.x + nx*2, obj.z + nz*2);
+                    AudioSys.playWall(); createSparks(obj.x + nx * 2, obj.z + nz * 2, 6, 0x00f3ff);
                 }
             }
 
-            // Use ABS spin for decay check, keep sign for physics direction
             const spinMag = Math.abs(obj.spin);
-            if(spinMag < 0.05) roundOver(obj.isPlayer ? 'LOSE' : 'WIN', 'SPIN');
-            
-            obj.vx *= obj.friction; obj.vz *= obj.friction;
-            obj.spin *= obj.friction; // Decay maintains sign
+            if (spinMag < 0.05) roundOver(obj.isPlayer ? 'LOSE' : 'WIN', 'SPIN');
 
-            // --- Visual Position with Height & Tilt Correction ---
-            const floorY = getArenaHeight(obj.x, obj.z);
-
-            const maxTilt = 0.6;
-            const targetTiltX = Math.max(-maxTilt, Math.min(maxTilt, obj.vz * 0.6)); 
-            const targetTiltZ = Math.max(-maxTilt, Math.min(maxTilt, -obj.vx * 0.6));
-            
-            let wobbleX = 0, wobbleZ = 0;
-            if(spinMag < 0.3) {
-                const t = Date.now() * 0.015;
-                const wobbleAmt = (0.3 - spinMag) * 2.0;
-                wobbleX = Math.sin(t) * wobbleAmt; wobbleZ = Math.cos(t) * wobbleAmt;
+            // 1.3: Speed-dependent friction
+            const speed = Math.sqrt(obj.vx * obj.vx + obj.vz * obj.vz);
+            const rollingFric = 0.002 / (spinMag + 0.1);
+            const airDrag = 0.001 * speed;
+            const totalDecel = (rollingFric + airDrag) * ts;
+            if (speed > 0.001) {
+                const factor = Math.max(0, 1 - totalDecel / speed);
+                obj.vx *= factor; obj.vz *= factor;
             }
+
+            // 1.1: Gyroscopic precession
+            const spinRatio = spinMag / MAX_SPIN;
+            obj.precessionAngle += (0.15 / (spinRatio + 0.05)) * ts;
+            const precAmp = Math.pow(1 - Math.min(spinRatio, 1), 2) * 0.7;
+            let wobbleX = Math.sin(obj.precessionAngle) * precAmp;
+            let wobbleZ = Math.cos(obj.precessionAngle) * precAmp;
+
+            // Nutation: fast secondary oscillation when spin is low
+            if (spinMag < 0.15) {
+                const nutAmp = (0.15 - spinMag) * 3.0;
+                obj.nutation += 0.3 * ts;
+                wobbleX += Math.sin(obj.nutation * 7) * nutAmp;
+                wobbleZ += Math.cos(obj.nutation * 7) * nutAmp;
+            }
+
+            // Toppling: rapid tilt at very low spin
+            if (spinMag < 0.08) {
+                const toppleFactor = (0.08 - spinMag) * 15;
+                wobbleX *= (1 + toppleFactor);
+                wobbleZ *= (1 + toppleFactor);
+            }
+
+            // Tilt from velocity
+            const maxTilt = 0.8;
+            const targetTiltX = Math.max(-maxTilt, Math.min(maxTilt, obj.vz * 0.6));
+            const targetTiltZ = Math.max(-maxTilt, Math.min(maxTilt, -obj.vx * 0.6));
 
             const currentTiltX = targetTiltX + wobbleX;
             const currentTiltZ = targetTiltZ + wobbleZ;
-            
-            const tiltMag = Math.sqrt(currentTiltX*currentTiltX + currentTiltZ*currentTiltZ);
-            const tiltLift = Math.max(0, tiltMag * obj.radius * 0.6 - 0.5); 
+            const tiltMag = Math.sqrt(currentTiltX * currentTiltX + currentTiltZ * currentTiltZ);
 
-            // FIX: Sinking the model slightly (-0.6) to prevent floating look
+            // 1.3: Spin decay modulated by tilt (more tilt = faster decay)
+            const tiltFactor = 1 + tiltMag * 0.5;
+            const spinDecay = 1 - (1 - obj.friction) * tiltFactor;
+            obj.spin *= Math.pow(spinDecay, ts);
+
+            // Trigger slow-mo on finishing blow
+            if (spinMag < 0.12 && spinMag > 0.05 && timeScaleTarget === 1.0) {
+                timeScaleTarget = 0.35;
+                setTimeout(() => { timeScaleTarget = 1.0; }, 2500);
+            }
+
+            // Visual position
+            const floorY = getArenaHeight(obj.x, obj.z);
+            const tiltLift = Math.max(0, tiltMag * obj.radius * 0.6 - 0.5);
             obj.groups.root.position.set(obj.x, floorY + tiltLift - 0.6, obj.z);
-            
-            // Rotation Visual: Minus spin means:
-            // If spin > 0 (Player): Rot.y decreases (CW visual)
-            // If spin < 0 (Enemy): Rot.y increases (CCW visual)
-            obj.groups.spin.rotation.y -= obj.spin; 
+            obj.groups.spin.rotation.y -= obj.spin * ts;
             obj.groups.tilt.rotation.x = currentTiltX;
             obj.groups.tilt.rotation.z = currentTiltZ;
+
+            // Trail buffer update
+            if (trailBuffers[idx]) {
+                trailBuffers[idx].push({ x: obj.x, y: floorY + 1.5, z: obj.z });
+                if (trailBuffers[idx].length > 15) trailBuffers[idx].shift();
+            }
         });
 
+        // --- Collision / AI ---
         const p = objects[0], e = objects[1];
+        if (!p || !e) return;
         const dx = p.x - e.x, dz = p.z - e.z;
-        const dist = Math.sqrt(dx*dx + dz*dz);
+        const colDist = Math.sqrt(dx * dx + dz * dz);
         const hitDist = p.radius + e.radius;
 
-        if(dist > hitDist) {
-            // AI Follow: Use abs spin for "alive" check strength
-            const aiForce = e.moveSpeed * 0.7 * (Math.abs(e.spin) / MAX_SPIN);
-            e.vx += (dx/dist) * aiForce; e.vz += (dz/dist) * aiForce;
+        if (colDist > hitDist) {
+            // 2.3: Smarter enemy AI
+            const eSpin = Math.abs(e.spin);
+            const pSpin = Math.abs(p.spin);
+            const aiForce = e.moveSpeed * 0.7 * (eSpin / MAX_SPIN) * ts;
+
+            if (e.aiBurstCooldown > 0) e.aiBurstCooldown -= ts;
+
+            switch (e.aiType) {
+                case 'aggressive':
+                    e.vx += (dx / colDist) * aiForce;
+                    e.vz += (dz / colDist) * aiForce;
+                    break;
+                case 'defensive': {
+                    // Orbit center, attack when player is weak
+                    const cDist = Math.sqrt(e.x * e.x + e.z * e.z);
+                    if (cDist > 8) {
+                        e.vx -= (e.x / (cDist + 0.1)) * aiForce * 0.6;
+                        e.vz -= (e.z / (cDist + 0.1)) * aiForce * 0.6;
+                    }
+                    const pSpeed = Math.sqrt(p.vx * p.vx + p.vz * p.vz);
+                    if (pSpin < eSpin * 0.7 || pSpeed > 1.5) {
+                        e.vx += (dx / colDist) * aiForce * 0.8;
+                        e.vz += (dz / colDist) * aiForce * 0.8;
+                    } else {
+                        // Orbit perpendicular
+                        e.vx += (-dz / colDist) * aiForce * 0.4;
+                        e.vz += (dx / colDist) * aiForce * 0.4;
+                    }
+                    break;
+                }
+                case 'strategic': {
+                    if (eSpin > pSpin) {
+                        e.vx += (dx / colDist) * aiForce;
+                        e.vz += (dz / colDist) * aiForce;
+                    } else {
+                        const cDist = Math.sqrt(e.x * e.x + e.z * e.z);
+                        if (cDist > 5) {
+                            e.vx -= (e.x / (cDist + 0.1)) * aiForce * 0.8;
+                            e.vz -= (e.z / (cDist + 0.1)) * aiForce * 0.8;
+                        }
+                    }
+                    break;
+                }
+                case 'boss': {
+                    if (eSpin > pSpin * 0.8) {
+                        e.vx += (dx / colDist) * aiForce * 1.2;
+                        e.vz += (dz / colDist) * aiForce * 1.2;
+                    } else {
+                        const cDist = Math.sqrt(e.x * e.x + e.z * e.z);
+                        if (cDist > 5) {
+                            e.vx -= (e.x / (cDist + 0.1)) * aiForce;
+                            e.vz -= (e.z / (cDist + 0.1)) * aiForce;
+                        }
+                    }
+                    // Burst attack
+                    if (e.aiBurstCooldown <= 0 && colDist < 25 && Math.random() > 0.995) {
+                        e.vx += (dx / colDist) * 0.8;
+                        e.vz += (dz / colDist) * 0.8;
+                        e.aiBurstCooldown = 60;
+                    }
+                    break;
+                }
+            }
+
+            // Grinding sparks when very close
+            if (colDist < hitDist * 1.3) {
+                const relSurf = Math.abs(p.spin * p.radius - e.spin * e.radius);
+                if (relSurf > 0.5 && Math.random() > 0.7) {
+                    createSparks((p.x + e.x) / 2, (p.z + e.z) / 2, 2, 0xff8800);
+                    AudioSys.playGrind(relSurf);
+                }
+            }
         } else {
-            const nx = dx / dist, nz = dz / dist;
+            // 1.4: Spin-direction collisions with angular momentum transfer
+            const nx = dx / colDist, nz = dz / colDist;
+            const tx = -nz, tz = nx; // tangent vector
             const rvx = p.vx - e.vx, rvz = p.vz - e.vz;
             const impact = rvx * nx + rvz * nz;
 
             if (impact < 0) {
-                createSparks((p.x+e.x)/2, (p.z+e.z)/2);
-                AudioSys.playHit(Math.abs(impact));
+                // Surface velocity at contact point
+                const surfP = p.spin * p.radius;
+                const surfE = e.spin * e.radius;
+                const relSurf = surfP - surfE;
+
+                // Tangential friction force from relative surface speed
+                const contactFriction = 0.4;
+                const tangentialImpulse = contactFriction * relSurf * Math.abs(impact) * 0.1;
 
                 const impulse = -(1 + settings.restitution) * impact * settings.forceMult;
                 const pRatio = e.mass / (p.mass + e.mass);
                 const eRatio = p.mass / (p.mass + e.mass);
-                
-                // Spin collision transfer? simplified kick
-                const kick = 0.3 * (Math.abs(p.spin) + Math.abs(e.spin));
 
-                p.vx += (impulse * pRatio * nx) + (Math.random()-0.5)*kick;
-                p.vz += (impulse * pRatio * nz) + (Math.random()-0.5)*kick;
-                e.vx -= (impulse * eRatio * nx) + (Math.random()-0.5)*kick;
-                e.vz -= (impulse * eRatio * nz) + (Math.random()-0.5)*kick;
-                
-                // Collision spin loss
-                p.spin *= 0.96; e.spin *= 0.96;
-                shakeCamera(1.5 * Math.abs(impact));
+                // Normal collision forces
+                p.vx += impulse * pRatio * nx * ts;
+                p.vz += impulse * pRatio * nz * ts;
+                e.vx -= impulse * eRatio * nx * ts;
+                e.vz -= impulse * eRatio * nz * ts;
+
+                // Tangential forces from spin grinding
+                p.vx += tangentialImpulse * tx * pRatio * ts;
+                p.vz += tangentialImpulse * tz * pRatio * ts;
+                e.vx -= tangentialImpulse * tx * eRatio * ts;
+                e.vz -= tangentialImpulse * tz * eRatio * ts;
+
+                // Angular momentum transfer
+                const spinTransfer = contactFriction * relSurf * 0.04 * ts;
+                const pInertia = p.mass * p.radius * p.radius;
+                const eInertia = e.mass * e.radius * e.radius;
+                p.spin -= spinTransfer / (pInertia + 0.1);
+                e.spin += spinTransfer / (eInertia + 0.1);
+
+                // Spin loss from collision (less than before since we have transfer)
+                const spinLoss = 0.97;
+                p.spin *= spinLoss; e.spin *= spinLoss;
+
+                // Determine spark count/color by impact strength
+                const impactStr = Math.abs(impact);
+                const sparkCount = Math.min(20, Math.floor(4 + impactStr * 8));
+                const sparkColor = impactStr > 1.5 ? 0xffffff : impactStr > 0.8 ? 0xffaa44 : 0xffffaa;
+                createSparks((p.x + e.x) / 2, (p.z + e.z) / 2, sparkCount, sparkColor);
+                createImpactFlash((p.x + e.x) / 2, (p.z + e.z) / 2, impactStr);
+
+                AudioSys.playHit(impactStr);
+                triggerShake(1.5 * impactStr);
+
+                // Camera zoom on strong hit
+                if (impactStr > 1.0) cameraZoomOffset = -15 * Math.min(impactStr, 3);
+
+                // Separate overlapping tops
+                const overlap = hitDist - colDist;
+                if (overlap > 0) {
+                    p.x += nx * overlap * 0.5; p.z += nz * overlap * 0.5;
+                    e.x -= nx * overlap * 0.5; e.z -= nz * overlap * 0.5;
+                }
             }
         }
 
-        if (!safetyPhase) {
-            const limit = ARENA_RADIUS + 4; 
-            if(distFromCenter(p) > limit) roundOver('LOSE', 'RING');
-            else if(distFromCenter(e) > limit) roundOver('WIN', 'RING');
+        // Update spin meter HUD
+        const pSpinPct = Math.max(0, Math.abs(p.spin) / MAX_SPIN * 100);
+        const eSpinPct = Math.max(0, Math.abs(e.spin) / MAX_SPIN * 100);
+        const pBar = document.getElementById('spin-bar-p');
+        const eBar = document.getElementById('spin-bar-e');
+        if (pBar) {
+            pBar.style.width = pSpinPct + '%';
+            pBar.classList.toggle('critical', pSpinPct < 20);
         }
+        if (eBar) {
+            eBar.style.width = eSpinPct + '%';
+            eBar.classList.toggle('critical', eSpinPct < 20);
+        }
+
+        // Visual arena tilt
+        if (arenaMesh) {
+            arenaMesh.rotation.z += (arenaTilt.z * 8 - arenaMesh.rotation.z) * 0.1;
+        }
+
+        // Ring out check
+        if (!safetyPhase) {
+            const limit = ARENA_RADIUS + 4;
+            if (distFromCenter(p) > limit) roundOver('LOSE', 'RING');
+            else if (distFromCenter(e) > limit) roundOver('WIN', 'RING');
+        }
+    }
+
+    function triggerShake(intensity) {
+        shakeIntensity = Math.max(shakeIntensity, intensity);
     }
 
     function distFromCenter(obj) { return Math.sqrt(obj.x*obj.x + obj.z*obj.z); }
@@ -754,52 +1145,146 @@
     function roundOver(result, type) {
         if (state.screen === 'WAIT') return;
         state.screen = 'WAIT';
+        AudioSys.stopSpinHum();
         let subText = "";
         if (type === 'SPIN') subText = result === 'WIN' ? "對手停止旋轉 (Spin Finish)" : "旋轉力耗盡 (Spin Finish)";
         else subText = result === 'WIN' ? "擊飛對手 (Over Finish)" : "被擊出場外 (Over Finish)";
-        if(result === 'WIN') { showMsg("VICTORY", 1500, "var(--primary)"); AudioSys.playWin(); createConfetti(); }
-        else { showMsg("DEFEAT", 1500, "var(--secondary)"); AudioSys.playLose(); }
+        if (result === 'WIN') {
+            showMsg("VICTORY", 1500, "var(--primary)"); AudioSys.playWin(); createConfetti();
+            saveData.wins++; saveData.streak++;
+            if (state.level > saveData.maxLevel) saveData.maxLevel = state.level;
+        } else {
+            showMsg("DEFEAT", 1500, "var(--secondary)"); AudioSys.playLose();
+            saveData.losses++; saveData.streak = 0;
+        }
+        localStorage.setItem('beyGame', JSON.stringify(saveData));
         setTimeout(() => matchOver(result === 'WIN', subText), 2000);
     }
 
     function matchOver(playerWon, reason) {
         switchScreen('screen-result');
+        document.getElementById('spin-meters').classList.add('hidden');
+        document.getElementById('battle-timer').classList.add('hidden');
+        document.getElementById('tilt-indicator').style.display = 'none';
         const title = document.getElementById('result-title'); const sub = document.getElementById('result-sub');
-        if(playerWon) { title.innerText = "WINNER"; title.style.color = "var(--primary)"; }
+        if (playerWon) { title.innerText = "WINNER"; title.style.color = "var(--primary)"; }
         else { title.innerText = "LOSER"; title.style.color = "var(--secondary)"; }
         sub.innerText = reason;
+        const statsEl = document.getElementById('result-stats');
+        statsEl.innerHTML = `勝場: ${saveData.wins} | 連勝: ${saveData.streak} | 最高等級: ${saveData.maxLevel}`;
     }
 
-    function createSparks(x, z) {
-        for(let i=0; i<8; i++) {
-            const geo = new THREE.BoxGeometry(0.2, 0.2, 0.2); const mat = new THREE.MeshBasicMaterial({ color: 0xffffaa });
-            const mesh = new THREE.Mesh(geo, mat); mesh.position.set(x, 1, z);
-            const angle = Math.random()*Math.PI*2; const spd = Math.random()*0.6+0.2;
-            particles.push({ mesh: mesh, vx: Math.cos(angle)*spd, vy: Math.random()*0.5+0.2, vz: Math.sin(angle)*spd, life: 1.0 });
+    function createSparks(x, z, count, color) {
+        count = count || 8;
+        color = color || 0xffffaa;
+        for (let i = 0; i < count; i++) {
+            const geo = new THREE.BoxGeometry(0.25, 0.25, 0.25);
+            const mat = new THREE.MeshBasicMaterial({ color: color, transparent: true });
+            const mesh = new THREE.Mesh(geo, mat); mesh.position.set(x, 1.5, z);
+            const angle = Math.random() * Math.PI * 2; const spd = Math.random() * 0.8 + 0.2;
+            particles.push({
+                mesh: mesh, vx: Math.cos(angle) * spd, vy: Math.random() * 0.6 + 0.3, vz: Math.sin(angle) * spd,
+                life: 1.0, startColor: color
+            });
             scene.add(mesh);
         }
     }
+
+    function createImpactFlash(x, z, intensity) {
+        const size = Math.min(intensity * 3, 8);
+        const geo = new THREE.SphereGeometry(size, 8, 8);
+        const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.set(x, 2, z);
+        scene.add(mesh);
+        flashMeshes.push({ mesh: mesh, life: 1.0 });
+    }
+
     function updateParticles() {
-        for(let i=particles.length-1; i>=0; i--) {
-            const p = particles[i]; p.mesh.position.x += p.vx; p.mesh.position.y += p.vy; p.mesh.position.z += p.vz;
-            p.vy -= 0.03; p.life -= 0.05; p.mesh.scale.setScalar(p.life);
-            if(p.life <= 0) { scene.remove(p.mesh); particles.splice(i, 1); }
+        for (let i = particles.length - 1; i >= 0; i--) {
+            const p = particles[i];
+            p.mesh.position.x += p.vx * timeScale; p.mesh.position.y += p.vy * timeScale; p.mesh.position.z += p.vz * timeScale;
+            p.vy -= 0.03 * timeScale; p.life -= 0.04 * timeScale; p.mesh.scale.setScalar(Math.max(0.1, p.life));
+            p.mesh.material.opacity = p.life;
+            if (p.life <= 0) { scene.remove(p.mesh); p.mesh.geometry.dispose(); p.mesh.material.dispose(); particles.splice(i, 1); }
+        }
+        // Impact flashes
+        for (let i = flashMeshes.length - 1; i >= 0; i--) {
+            const f = flashMeshes[i];
+            f.life -= 0.15;
+            f.mesh.scale.setScalar(1 + (1 - f.life) * 2);
+            f.mesh.material.opacity = Math.max(0, f.life);
+            if (f.life <= 0) { scene.remove(f.mesh); f.mesh.geometry.dispose(); f.mesh.material.dispose(); flashMeshes.splice(i, 1); }
         }
     }
-    function shakeCamera(intensity = 1.0) { camera.position.x += (Math.random()-0.5)*intensity; camera.position.z += (Math.random()-0.5)*intensity; }
+
     function showMsg(t, d, c) { const el = document.getElementById('msg-overlay'); el.innerText = t; el.style.color = c; el.style.opacity = 1; if(d) setTimeout(() => el.style.opacity = 0, d); }
-    function createConfetti() { createSparks(0,0); createSparks(3,3); createSparks(-3,-3); }
+
+    function createConfetti() {
+        const colors = [0x00f3ff, 0xff0055, 0xffff00, 0x00ff88, 0xffffff, 0xff8800];
+        for (let i = 0; i < 30; i++) {
+            const color = colors[Math.floor(Math.random() * colors.length)];
+            const geo = new THREE.BoxGeometry(0.4, 0.4, 0.1);
+            const mat = new THREE.MeshBasicMaterial({ color: color, transparent: true });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.position.set((Math.random() - 0.5) * 20, 1, (Math.random() - 0.5) * 20);
+            const angle = Math.random() * Math.PI * 2; const spd = Math.random() * 0.4 + 0.3;
+            particles.push({
+                mesh: mesh, vx: Math.cos(angle) * spd, vy: Math.random() * 0.8 + 0.5, vz: Math.sin(angle) * spd,
+                life: 2.0, startColor: color
+            });
+            scene.add(mesh);
+        }
+    }
+
+    // Trail rendering
+    function updateTrails() {
+        // Remove old trail lines
+        for (let i = scene.children.length - 1; i >= 0; i--) {
+            if (scene.children[i].userData.isTrail) { scene.remove(scene.children[i]); scene.children[i].geometry.dispose(); }
+        }
+        if (state.screen !== 'PLAY' && state.screen !== 'WAIT') return;
+        const colors = [0x00f3ff, 0xff0055];
+        trailBuffers.forEach((buf, idx) => {
+            if (buf.length < 3) return;
+            const points = buf.map(p => new THREE.Vector3(p.x, p.y, p.z));
+            const geo = new THREE.BufferGeometry().setFromPoints(points);
+            const mat = new THREE.LineBasicMaterial({ color: colors[idx], transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending });
+            const line = new THREE.Line(geo, mat);
+            line.userData.isTrail = true;
+            scene.add(line);
+        });
+    }
 
     function animate() {
-        requestAnimationFrame(animate); physicsStep(); updateParticles();
-        
-        if(state.screen === 'PLAY' || state.screen === 'WAIT') {
-            const cx = (objects[0]?.x + objects[1]?.x)/2 || 0; const cz = (objects[0]?.z + objects[1]?.z)/2 || 0;
-            camera.position.x += (cx*0.5 - camera.position.x) * 0.05; camera.position.z += ((cz*0.5 + 40) - camera.position.z) * 0.05; camera.lookAt(cx, 0, cz);
+        requestAnimationFrame(animate); physicsStep(); updateParticles(); updateTrails();
+
+        // Decaying camera shake
+        shakeIntensity *= 0.85;
+        cameraZoomOffset *= 0.92;
+
+        if (state.screen === 'PLAY' || state.screen === 'WAIT') {
+            const cx = (objects[0]?.x + objects[1]?.x) / 2 || 0;
+            const cz = (objects[0]?.z + objects[1]?.z) / 2 || 0;
+            const targetY = 85 + cameraZoomOffset;
+            const targetZ = cz * 0.5 + 40;
+            camera.position.x += (cx * 0.5 - camera.position.x) * 0.05;
+            camera.position.y += (targetY - camera.position.y) * 0.08;
+            camera.position.z += (targetZ - camera.position.z) * 0.05;
+
+            // Apply shake
+            if (shakeIntensity > 0.1) {
+                camera.position.x += (Math.random() - 0.5) * shakeIntensity;
+                camera.position.z += (Math.random() - 0.5) * shakeIntensity;
+                camera.position.y += (Math.random() - 0.5) * shakeIntensity * 0.3;
+            }
+            camera.lookAt(cx, 0, cz);
         } else if (state.screen === 'DRAW' || state.screen === 'LEVEL') {
-            const t = Date.now()*0.0002; camera.position.x = Math.sin(t)*60; camera.position.z = Math.cos(t)*60; camera.lookAt(0,0,0);
-            if(playerGroups.root) playerGroups.spin.rotation.y -= 0.1;
-            if(enemyGroups.root) enemyGroups.spin.rotation.y -= 0.1;
+            const t = Date.now() * 0.0002;
+            camera.position.x = Math.sin(t) * 60; camera.position.z = Math.cos(t) * 60; camera.position.y = 85;
+            camera.lookAt(0, 0, 0);
+            if (playerGroups.root) playerGroups.spin.rotation.y -= 0.1;
+            if (enemyGroups.root) enemyGroups.spin.rotation.y -= 0.1;
         }
         renderer.render(scene, camera);
     }
