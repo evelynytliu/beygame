@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Color Match — 顏色匹配遊戲</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto:wght@300;500&display=swap');
+
+        :root {
+            --primary: #00f3ff;
+            --secondary: #ff0055;
+            --gold: #ffaa00;
+            --bg: #050510;
+            --panel: rgba(10, 10, 20, 0.95);
+            --border: rgba(0, 243, 255, 0.3);
+            --muted: #888;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background:
+                radial-gradient(circle at 20% 20%, rgba(0, 243, 255, 0.08), transparent 40%),
+                radial-gradient(circle at 80% 80%, rgba(255, 0, 85, 0.08), transparent 40%),
+                var(--bg);
+            font-family: 'Roboto', sans-serif;
+            color: white;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px 16px 40px;
+        }
+
+        h1 {
+            font-family: 'Orbitron', sans-serif;
+            color: var(--primary);
+            text-shadow: 0 0 12px var(--primary);
+            margin: 0 0 0.25rem;
+            font-size: 2rem;
+            letter-spacing: 3px;
+        }
+
+        .subtitle {
+            color: var(--muted);
+            font-size: 0.85rem;
+            margin: 0 0 1.25rem;
+            letter-spacing: 1px;
+        }
+
+        .game {
+            width: 100%;
+            max-width: 520px;
+            background: var(--panel);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.25rem;
+            box-shadow: 0 0 40px rgba(0, 243, 255, 0.15);
+        }
+
+        /* Side-by-side color comparison, NO gap so edges touch */
+        .comparison {
+            display: flex;
+            width: 100%;
+            height: 180px;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.1);
+            margin-bottom: 1rem;
+            position: relative;
+        }
+
+        .swatch {
+            flex: 1;
+            position: relative;
+            transition: background-color 0.08s linear;
+        }
+
+        .swatch-label {
+            position: absolute;
+            top: 10px;
+            left: 12px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.7rem;
+            letter-spacing: 2px;
+            color: rgba(255,255,255,0.85);
+            text-shadow: 0 0 6px rgba(0,0,0,0.8);
+            background: rgba(0,0,0,0.35);
+            padding: 3px 8px;
+            border-radius: 4px;
+        }
+
+        .swatch-hex {
+            position: absolute;
+            bottom: 10px;
+            left: 12px;
+            font-family: 'Orbitron', monospace;
+            font-size: 0.75rem;
+            color: rgba(255,255,255,0.9);
+            text-shadow: 0 0 6px rgba(0,0,0,0.9);
+            background: rgba(0,0,0,0.35);
+            padding: 3px 8px;
+            border-radius: 4px;
+            letter-spacing: 1px;
+        }
+
+        .comparison-divider {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            width: 2px;
+            height: 100%;
+            background: rgba(255,255,255,0.2);
+            transform: translateX(-50%);
+            pointer-events: none;
+        }
+
+        /* Mode toggle */
+        .mode-toggle {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 1rem;
+        }
+        .mode-btn {
+            background: transparent;
+            border: 1px solid rgba(255,255,255,0.15);
+            color: #aaa;
+            padding: 6px 16px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.75rem;
+            letter-spacing: 1px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: 0.2s;
+        }
+        .mode-btn.active {
+            background: var(--primary);
+            color: #000;
+            border-color: var(--primary);
+            box-shadow: 0 0 12px rgba(0, 243, 255, 0.5);
+        }
+
+        /* Sliders */
+        .slider-group {
+            margin-bottom: 0.9rem;
+        }
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            font-size: 0.8rem;
+            color: #ccc;
+            margin-bottom: 4px;
+            font-family: 'Orbitron', sans-serif;
+            letter-spacing: 1px;
+        }
+        .slider-name { color: #ddd; }
+        .slider-value {
+            color: var(--primary);
+            font-family: monospace;
+            font-size: 0.95rem;
+            min-width: 48px;
+            text-align: right;
+        }
+
+        /* Slider track with hue gradient for H, saturation gradient for S etc. */
+        input[type=range] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 14px;
+            border-radius: 7px;
+            outline: none;
+            cursor: pointer;
+            background: #333;
+            margin: 0;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: white;
+            border: 2px solid var(--primary);
+            box-shadow: 0 0 10px var(--primary), 0 0 2px rgba(0,0,0,0.6) inset;
+            cursor: pointer;
+        }
+        input[type=range]::-moz-range-thumb {
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: white;
+            border: 2px solid var(--primary);
+            box-shadow: 0 0 10px var(--primary);
+            cursor: pointer;
+        }
+
+        /* Controls */
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 1.25rem;
+        }
+        .btn {
+            flex: 1;
+            background: transparent;
+            border: 1px solid var(--primary);
+            color: var(--primary);
+            padding: 12px 20px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: 0.25s;
+            border-radius: 6px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+        }
+        .btn:hover:not(:disabled) {
+            background: var(--primary);
+            color: #000;
+            box-shadow: 0 0 20px var(--primary);
+        }
+        .btn:disabled {
+            opacity: 0.35;
+            cursor: not-allowed;
+        }
+        .btn.secondary { border-color: var(--secondary); color: var(--secondary); }
+        .btn.secondary:hover:not(:disabled) {
+            background: var(--secondary);
+            color: #fff;
+            box-shadow: 0 0 20px var(--secondary);
+        }
+
+        /* Score panel */
+        .score-panel {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-top: 1rem;
+            padding: 0.85rem;
+            background: rgba(0,0,0,0.45);
+            border: 1px solid #222;
+            border-radius: 8px;
+        }
+        .stat {
+            text-align: center;
+        }
+        .stat-label {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.6rem;
+            color: #888;
+            letter-spacing: 1.5px;
+            margin-bottom: 3px;
+        }
+        .stat-value {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.15rem;
+            color: var(--gold);
+            text-shadow: 0 0 8px rgba(255, 170, 0, 0.35);
+        }
+
+        /* Result banner */
+        .result {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: rgba(0,0,0,0.5);
+            border: 1px solid transparent;
+            border-radius: 8px;
+            text-align: center;
+            min-height: 0;
+            overflow: hidden;
+            opacity: 0;
+            transform: translateY(-6px);
+            transition: opacity 0.3s, transform 0.3s, border-color 0.3s;
+        }
+        .result.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .result-score {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2.4rem;
+            font-weight: bold;
+            line-height: 1;
+            margin-bottom: 0.25rem;
+        }
+        .result-grade {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.85rem;
+            letter-spacing: 2px;
+            margin-bottom: 0.35rem;
+        }
+        .result-detail {
+            font-size: 0.75rem;
+            color: #aaa;
+            font-family: monospace;
+        }
+
+        .help {
+            color: #666;
+            font-size: 0.7rem;
+            text-align: center;
+            margin-top: 1rem;
+            font-style: italic;
+        }
+
+        @media (max-width: 420px) {
+            h1 { font-size: 1.6rem; }
+            .comparison { height: 150px; }
+            .result-score { font-size: 2rem; }
+        }
+    </style>
+</head>
+<body>
+    <h1>COLOR MATCH</h1>
+    <p class="subtitle">調整滑桿，讓右側顏色與左側一致 · 無需記憶</p>
+
+    <div class="game">
+        <div class="comparison">
+            <div class="swatch" id="target-swatch">
+                <div class="swatch-label">目標 TARGET</div>
+                <div class="swatch-hex" id="target-hex" style="display:none;"></div>
+            </div>
+            <div class="swatch" id="player-swatch">
+                <div class="swatch-label">你的 YOURS</div>
+                <div class="swatch-hex" id="player-hex"></div>
+            </div>
+            <div class="comparison-divider"></div>
+        </div>
+
+        <div class="mode-toggle">
+            <button class="mode-btn active" data-mode="HSL">HSL</button>
+            <button class="mode-btn" data-mode="RGB">RGB</button>
+        </div>
+
+        <div id="sliders"></div>
+
+        <div class="controls">
+            <button class="btn" id="submit-btn">提交 / SUBMIT</button>
+            <button class="btn secondary" id="next-btn" disabled>下一輪 / NEXT</button>
+        </div>
+
+        <div class="result" id="result">
+            <div class="result-score" id="result-score">--</div>
+            <div class="result-grade" id="result-grade"></div>
+            <div class="result-detail" id="result-detail"></div>
+        </div>
+
+        <div class="score-panel">
+            <div class="stat">
+                <div class="stat-label">回合</div>
+                <div class="stat-value" id="stat-round">1</div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">總分</div>
+                <div class="stat-value" id="stat-total">0</div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">平均</div>
+                <div class="stat-value" id="stat-avg">--</div>
+            </div>
+        </div>
+
+        <p class="help">提示：HSL 較直覺（色相/飽和/亮度），RGB 適合微調</p>
+    </div>
+
+    <script>
+    (function () {
+        /* ---------- Color math ---------- */
+
+        function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+
+        function rgbToHex([r, g, b]) {
+            return '#' + [r, g, b].map(c => clamp(Math.round(c), 0, 255).toString(16).padStart(2, '0')).join('').toUpperCase();
+        }
+
+        function rgbToHsl(r, g, b) {
+            r /= 255; g /= 255; b /= 255;
+            const max = Math.max(r, g, b), min = Math.min(r, g, b);
+            let h = 0, s = 0, l = (max + min) / 2;
+            if (max !== min) {
+                const d = max - min;
+                s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+                switch (max) {
+                    case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+                    case g: h = (b - r) / d + 2; break;
+                    case b: h = (r - g) / d + 4; break;
+                }
+                h *= 60;
+            }
+            return [Math.round(h), Math.round(s * 100), Math.round(l * 100)];
+        }
+
+        function hslToRgb(h, s, l) {
+            h = ((h % 360) + 360) % 360 / 360;
+            s = clamp(s, 0, 100) / 100;
+            l = clamp(l, 0, 100) / 100;
+            if (s === 0) {
+                const v = Math.round(l * 255);
+                return [v, v, v];
+            }
+            const hue2rgb = (p, q, t) => {
+                if (t < 0) t += 1;
+                if (t > 1) t -= 1;
+                if (t < 1 / 6) return p + (q - p) * 6 * t;
+                if (t < 1 / 2) return q;
+                if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+                return p;
+            };
+            const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+            const p = 2 * l - q;
+            return [
+                Math.round(hue2rgb(p, q, h + 1 / 3) * 255),
+                Math.round(hue2rgb(p, q, h) * 255),
+                Math.round(hue2rgb(p, q, h - 1 / 3) * 255)
+            ];
+        }
+
+        // sRGB -> Lab (D65), used for perceptual Delta E scoring
+        function rgbToLab(r, g, b) {
+            const toLinear = c => {
+                c /= 255;
+                return c > 0.04045 ? Math.pow((c + 0.055) / 1.055, 2.4) : c / 12.92;
+            };
+            const R = toLinear(r), G = toLinear(g), B = toLinear(b);
+            // D65 sRGB matrix
+            let X = (R * 0.4124564 + G * 0.3575761 + B * 0.1804375) / 0.95047;
+            let Y = (R * 0.2126729 + G * 0.7151522 + B * 0.0721750) / 1.00000;
+            let Z = (R * 0.0193339 + G * 0.1191920 + B * 0.9503041) / 1.08883;
+            const f = t => t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116;
+            const fx = f(X), fy = f(Y), fz = f(Z);
+            return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)];
+        }
+
+        function deltaE(lab1, lab2) {
+            const dL = lab1[0] - lab2[0];
+            const da = lab1[1] - lab2[1];
+            const db = lab1[2] - lab2[2];
+            return Math.sqrt(dL * dL + da * da + db * db);
+        }
+
+        /* ---------- Game state ---------- */
+
+        let mode = 'HSL';
+        let targetRGB = [0, 0, 0];
+        let playerRGB = [128, 128, 128];
+        let round = 1;
+        let totalScore = 0;
+        let submitted = false;
+
+        const slidersEl = document.getElementById('sliders');
+        const targetEl = document.getElementById('target-swatch');
+        const playerEl = document.getElementById('player-swatch');
+        const targetHexEl = document.getElementById('target-hex');
+        const playerHexEl = document.getElementById('player-hex');
+        const submitBtn = document.getElementById('submit-btn');
+        const nextBtn = document.getElementById('next-btn');
+        const resultEl = document.getElementById('result');
+        const resultScoreEl = document.getElementById('result-score');
+        const resultGradeEl = document.getElementById('result-grade');
+        const resultDetailEl = document.getElementById('result-detail');
+        const statRound = document.getElementById('stat-round');
+        const statTotal = document.getElementById('stat-total');
+        const statAvg = document.getElementById('stat-avg');
+
+        /* ---------- Sliders ---------- */
+
+        const SLIDER_DEFS = {
+            RGB: [
+                { key: 'R', label: 'R 紅', min: 0, max: 255 },
+                { key: 'G', label: 'G 綠', min: 0, max: 255 },
+                { key: 'B', label: 'B 藍', min: 0, max: 255 }
+            ],
+            HSL: [
+                { key: 'H', label: 'H 色相', min: 0, max: 360 },
+                { key: 'S', label: 'S 飽和', min: 0, max: 100 },
+                { key: 'L', label: 'L 亮度', min: 0, max: 100 }
+            ]
+        };
+
+        function buildSliders() {
+            slidersEl.innerHTML = '';
+            const defs = SLIDER_DEFS[mode];
+            const values = getCurrentSliderValues();
+            defs.forEach((def, i) => {
+                const group = document.createElement('div');
+                group.className = 'slider-group';
+                group.innerHTML = `
+                    <div class="slider-label">
+                        <span class="slider-name">${def.label}</span>
+                        <span class="slider-value" id="sv-${def.key}">${values[i]}</span>
+                    </div>
+                    <input type="range" id="sl-${def.key}" min="${def.min}" max="${def.max}" value="${values[i]}">
+                `;
+                slidersEl.appendChild(group);
+                const input = group.querySelector('input');
+                input.addEventListener('input', () => onSliderInput(def.key, parseInt(input.value, 10)));
+            });
+        }
+
+        function getCurrentSliderValues() {
+            if (mode === 'RGB') return [...playerRGB];
+            return rgbToHsl(...playerRGB);
+        }
+
+        function onSliderInput(key, value) {
+            if (mode === 'RGB') {
+                const idx = { R: 0, G: 1, B: 2 }[key];
+                playerRGB[idx] = value;
+            } else {
+                const cur = rgbToHsl(...playerRGB);
+                const idx = { H: 0, S: 1, L: 2 }[key];
+                cur[idx] = value;
+                playerRGB = hslToRgb(cur[0], cur[1], cur[2]);
+            }
+            document.getElementById('sv-' + key).textContent = value;
+            updatePlayerSwatch();
+        }
+
+        function updatePlayerSwatch() {
+            const hex = rgbToHex(playerRGB);
+            playerEl.style.background = hex;
+            playerHexEl.textContent = hex;
+        }
+
+        function updateTargetSwatch() {
+            targetEl.style.background = rgbToHex(targetRGB);
+        }
+
+        /* ---------- Rounds & scoring ---------- */
+
+        function randomTarget() {
+            // Avoid pure black / pure white for more interesting matches
+            const h = Math.floor(Math.random() * 360);
+            const s = 30 + Math.floor(Math.random() * 70);   // 30-100
+            const l = 20 + Math.floor(Math.random() * 60);   // 20-80
+            targetRGB = hslToRgb(h, s, l);
+        }
+
+        function resetPlayerColor() {
+            playerRGB = [128, 128, 128];
+        }
+
+        function computeScore() {
+            const dE = deltaE(rgbToLab(...targetRGB), rgbToLab(...playerRGB));
+            // dE ~0 = perfect, ~2 not perceptible, ~10 clearly different, >50 very far
+            // Score: 100 - dE, clamped. This rewards precision and is perceptual.
+            const score = Math.max(0, Math.round(100 - dE));
+            return { score, dE };
+        }
+
+        function gradeFor(score) {
+            if (score >= 98) return { text: '完美 PERFECT', color: '#00ffa6' };
+            if (score >= 92) return { text: '優秀 EXCELLENT', color: '#00f3ff' };
+            if (score >= 82) return { text: '不錯 GREAT', color: '#7af542' };
+            if (score >= 70) return { text: '還行 GOOD', color: '#ffaa00' };
+            if (score >= 50) return { text: '再加油 OKAY', color: '#ff8844' };
+            return { text: '差很多 MISS', color: '#ff0055' };
+        }
+
+        function submit() {
+            if (submitted) return;
+            submitted = true;
+            const { score, dE } = computeScore();
+            totalScore += score;
+            const grade = gradeFor(score);
+
+            resultScoreEl.textContent = score + ' 分';
+            resultScoreEl.style.color = grade.color;
+            resultScoreEl.style.textShadow = `0 0 12px ${grade.color}`;
+            resultGradeEl.textContent = grade.text;
+            resultGradeEl.style.color = grade.color;
+            resultDetailEl.innerHTML =
+                `目標 ${rgbToHex(targetRGB)} · 你的 ${rgbToHex(playerRGB)} · ΔE ${dE.toFixed(2)}`;
+            resultEl.classList.add('show');
+            resultEl.style.borderColor = grade.color;
+
+            // Reveal target hex
+            targetHexEl.textContent = rgbToHex(targetRGB);
+            targetHexEl.style.display = '';
+
+            statTotal.textContent = totalScore;
+            statAvg.textContent = Math.round(totalScore / round);
+
+            submitBtn.disabled = true;
+            nextBtn.disabled = false;
+        }
+
+        function nextRound() {
+            round += 1;
+            submitted = false;
+            randomTarget();
+            resetPlayerColor();
+            updateTargetSwatch();
+            updatePlayerSwatch();
+            buildSliders();
+            resultEl.classList.remove('show');
+            resultEl.style.borderColor = 'transparent';
+            targetHexEl.style.display = 'none';
+            targetHexEl.textContent = '';
+            submitBtn.disabled = false;
+            nextBtn.disabled = true;
+            statRound.textContent = round;
+        }
+
+        function switchMode(newMode) {
+            if (newMode === mode) return;
+            mode = newMode;
+            document.querySelectorAll('.mode-btn').forEach(b => {
+                b.classList.toggle('active', b.dataset.mode === mode);
+            });
+            buildSliders();
+        }
+
+        /* ---------- Init ---------- */
+
+        document.querySelectorAll('.mode-btn').forEach(btn => {
+            btn.addEventListener('click', () => switchMode(btn.dataset.mode));
+        });
+        submitBtn.addEventListener('click', submit);
+        nextBtn.addEventListener('click', nextRound);
+
+        // Keyboard: Enter = submit / next
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Enter') {
+                if (!submitted) submit();
+                else nextRound();
+            }
+        });
+
+        randomTarget();
+        resetPlayerColor();
+        updateTargetSwatch();
+        updatePlayerSwatch();
+        buildSliders();
+    })();
+    </script>
+</body>
+</html>
