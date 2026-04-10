@@ -2,384 +2,429 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Color Match — 顏色匹配遊戲</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#050510">
+    <title>Color Match</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto:wght@300;500&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Roboto:wght@300;500&display=swap');
 
         :root {
             --primary: #00f3ff;
             --secondary: #ff0055;
             --gold: #ffaa00;
             --bg: #050510;
-            --panel: rgba(10, 10, 20, 0.95);
-            --border: rgba(0, 243, 255, 0.3);
-            --muted: #888;
+            --glass: rgba(10, 10, 20, 0.72);
+            --border: rgba(255, 255, 255, 0.08);
+            --text-dim: #888;
         }
 
-        * { box-sizing: border-box; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
-        body {
+        html, body {
             margin: 0;
-            min-height: 100vh;
-            background:
-                radial-gradient(circle at 20% 20%, rgba(0, 243, 255, 0.08), transparent 40%),
-                radial-gradient(circle at 80% 80%, rgba(255, 0, 85, 0.08), transparent 40%),
-                var(--bg);
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+            background: var(--bg);
+            color: #fff;
             font-family: 'Roboto', sans-serif;
-            color: white;
             user-select: none;
-            -webkit-tap-highlight-color: transparent;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+            overscroll-behavior: none;
+        }
+
+        .app {
+            position: fixed;
+            inset: 0;
             display: flex;
             flex-direction: column;
-            align-items: center;
-            padding: 20px 16px 40px;
+            height: 100dvh;
+            height: 100vh;
         }
 
-        h1 {
-            font-family: 'Orbitron', sans-serif;
-            color: var(--primary);
-            text-shadow: 0 0 12px var(--primary);
-            margin: 0 0 0.25rem;
-            font-size: 2rem;
-            letter-spacing: 3px;
-        }
+        /* ==================== COLOR STAGE ==================== */
 
-        .subtitle {
-            color: var(--muted);
-            font-size: 0.85rem;
-            margin: 0 0 1.25rem;
-            letter-spacing: 1px;
-        }
-
-        .game {
-            width: 100%;
-            max-width: 520px;
-            background: var(--panel);
-            backdrop-filter: blur(12px);
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 1.25rem;
-            box-shadow: 0 0 40px rgba(0, 243, 255, 0.15);
-        }
-
-        /* Side-by-side color comparison, NO gap so edges touch */
-        .comparison {
-            display: flex;
-            width: 100%;
-            height: 180px;
-            border-radius: 12px;
-            overflow: hidden;
-            border: 1px solid rgba(255,255,255,0.1);
-            margin-bottom: 1rem;
+        .stage {
             position: relative;
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            overflow: hidden;
         }
 
         .swatch {
             flex: 1;
             position: relative;
-            transition: background-color 0.08s linear;
+            transition: background-color 0.06s linear;
         }
 
-        .swatch-label {
+        .corner-label {
             position: absolute;
-            top: 10px;
-            left: 12px;
+            top: max(14px, env(safe-area-inset-top));
             font-family: 'Orbitron', sans-serif;
-            font-size: 0.7rem;
-            letter-spacing: 2px;
-            color: rgba(255,255,255,0.85);
-            text-shadow: 0 0 6px rgba(0,0,0,0.8);
-            background: rgba(0,0,0,0.35);
-            padding: 3px 8px;
-            border-radius: 4px;
+            font-size: 0.68rem;
+            letter-spacing: 3px;
+            color: rgba(255, 255, 255, 0.92);
+            text-shadow: 0 1px 4px rgba(0, 0, 0, 0.85);
+            padding: 6px 10px;
+            background: rgba(0, 0, 0, 0.22);
+            backdrop-filter: blur(6px);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
+        .swatch.target .corner-label { left: 14px; }
+        .swatch.player .corner-label { right: 14px; }
 
-        .swatch-hex {
+        .corner-hex {
             position: absolute;
-            bottom: 10px;
-            left: 12px;
+            bottom: 14px;
             font-family: 'Orbitron', monospace;
-            font-size: 0.75rem;
-            color: rgba(255,255,255,0.9);
-            text-shadow: 0 0 6px rgba(0,0,0,0.9);
-            background: rgba(0,0,0,0.35);
-            padding: 3px 8px;
-            border-radius: 4px;
-            letter-spacing: 1px;
+            font-size: 0.72rem;
+            letter-spacing: 1.5px;
+            color: rgba(255, 255, 255, 0.92);
+            text-shadow: 0 1px 4px rgba(0, 0, 0, 0.85);
+            padding: 5px 10px;
+            background: rgba(0, 0, 0, 0.22);
+            backdrop-filter: blur(6px);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
+        .swatch.target .corner-hex { left: 14px; opacity: 0; transition: opacity 0.4s; }
+        .swatch.target .corner-hex.reveal { opacity: 1; }
+        .swatch.player .corner-hex { right: 14px; }
 
-        .comparison-divider {
+        .divider {
             position: absolute;
-            top: 0;
-            left: 50%;
-            width: 2px;
-            height: 100%;
-            background: rgba(255,255,255,0.2);
+            top: 0; bottom: 0; left: 50%;
+            width: 1px;
+            background: rgba(255, 255, 255, 0.18);
             transform: translateX(-50%);
             pointer-events: none;
         }
 
-        /* Mode toggle */
-        .mode-toggle {
-            display: flex;
-            justify-content: center;
-            gap: 8px;
-            margin-bottom: 1rem;
-        }
-        .mode-btn {
-            background: transparent;
-            border: 1px solid rgba(255,255,255,0.15);
-            color: #aaa;
-            padding: 6px 16px;
-            font-family: 'Orbitron', sans-serif;
-            font-size: 0.75rem;
-            letter-spacing: 1px;
-            cursor: pointer;
-            border-radius: 4px;
-            transition: 0.2s;
-        }
-        .mode-btn.active {
-            background: var(--primary);
-            color: #000;
-            border-color: var(--primary);
-            box-shadow: 0 0 12px rgba(0, 243, 255, 0.5);
-        }
+        /* ==================== RESULT OVERLAY ==================== */
 
-        /* Sliders */
-        .slider-group {
-            margin-bottom: 0.9rem;
-        }
-        .slider-label {
-            display: flex;
-            justify-content: space-between;
-            align-items: baseline;
-            font-size: 0.8rem;
-            color: #ccc;
-            margin-bottom: 4px;
-            font-family: 'Orbitron', sans-serif;
-            letter-spacing: 1px;
-        }
-        .slider-name { color: #ddd; }
-        .slider-value {
-            color: var(--primary);
-            font-family: monospace;
-            font-size: 0.95rem;
-            min-width: 48px;
-            text-align: right;
-        }
-
-        /* Slider track with hue gradient for H, saturation gradient for S etc. */
-        input[type=range] {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 100%;
-            height: 14px;
-            border-radius: 7px;
-            outline: none;
-            cursor: pointer;
-            background: #333;
-            margin: 0;
-        }
-        input[type=range]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 22px;
-            height: 22px;
-            border-radius: 50%;
-            background: white;
-            border: 2px solid var(--primary);
-            box-shadow: 0 0 10px var(--primary), 0 0 2px rgba(0,0,0,0.6) inset;
-            cursor: pointer;
-        }
-        input[type=range]::-moz-range-thumb {
-            width: 22px;
-            height: 22px;
-            border-radius: 50%;
-            background: white;
-            border: 2px solid var(--primary);
-            box-shadow: 0 0 10px var(--primary);
-            cursor: pointer;
-        }
-
-        /* Controls */
-        .controls {
-            display: flex;
-            gap: 10px;
-            margin-top: 1.25rem;
-        }
-        .btn {
-            flex: 1;
-            background: transparent;
-            border: 1px solid var(--primary);
-            color: var(--primary);
-            padding: 12px 20px;
-            font-family: 'Orbitron', sans-serif;
-            font-size: 0.95rem;
-            cursor: pointer;
-            transition: 0.25s;
-            border-radius: 6px;
-            text-transform: uppercase;
-            letter-spacing: 1.5px;
-        }
-        .btn:hover:not(:disabled) {
-            background: var(--primary);
-            color: #000;
-            box-shadow: 0 0 20px var(--primary);
-        }
-        .btn:disabled {
-            opacity: 0.35;
-            cursor: not-allowed;
-        }
-        .btn.secondary { border-color: var(--secondary); color: var(--secondary); }
-        .btn.secondary:hover:not(:disabled) {
-            background: var(--secondary);
-            color: #fff;
-            box-shadow: 0 0 20px var(--secondary);
-        }
-
-        /* Score panel */
-        .score-panel {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-            margin-top: 1rem;
-            padding: 0.85rem;
-            background: rgba(0,0,0,0.45);
-            border: 1px solid #222;
-            border-radius: 8px;
-        }
-        .stat {
+        .result-overlay {
+            position: absolute;
+            left: 50%; top: 50%;
+            transform: translate(-50%, -50%) scale(0.85);
+            padding: 22px 34px;
+            background: rgba(5, 5, 16, 0.78);
+            backdrop-filter: blur(18px);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 18px;
             text-align: center;
-        }
-        .stat-label {
-            font-family: 'Orbitron', sans-serif;
-            font-size: 0.6rem;
-            color: #888;
-            letter-spacing: 1.5px;
-            margin-bottom: 3px;
-        }
-        .stat-value {
-            font-family: 'Orbitron', sans-serif;
-            font-size: 1.15rem;
-            color: var(--gold);
-            text-shadow: 0 0 8px rgba(255, 170, 0, 0.35);
-        }
-
-        /* Result banner */
-        .result {
-            margin-top: 1rem;
-            padding: 1rem;
-            background: rgba(0,0,0,0.5);
-            border: 1px solid transparent;
-            border-radius: 8px;
-            text-align: center;
-            min-height: 0;
-            overflow: hidden;
             opacity: 0;
-            transform: translateY(-6px);
-            transition: opacity 0.3s, transform 0.3s, border-color 0.3s;
+            pointer-events: none;
+            transition: opacity 0.35s ease, transform 0.35s cubic-bezier(.2, 1.4, .4, 1);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+            min-width: 220px;
         }
-        .result.show {
+        .result-overlay.show {
             opacity: 1;
-            transform: translateY(0);
+            transform: translate(-50%, -50%) scale(1);
         }
         .result-score {
             font-family: 'Orbitron', sans-serif;
-            font-size: 2.4rem;
-            font-weight: bold;
+            font-size: 3.4rem;
+            font-weight: 700;
             line-height: 1;
-            margin-bottom: 0.25rem;
+            margin-bottom: 6px;
+            text-shadow: 0 0 24px currentColor;
+        }
+        .result-score-suffix {
+            font-size: 1.1rem;
+            opacity: 0.7;
+            margin-left: 4px;
         }
         .result-grade {
             font-family: 'Orbitron', sans-serif;
             font-size: 0.85rem;
-            letter-spacing: 2px;
-            margin-bottom: 0.35rem;
+            letter-spacing: 3px;
+            margin-bottom: 10px;
         }
         .result-detail {
-            font-size: 0.75rem;
+            font-size: 0.7rem;
             color: #aaa;
             font-family: monospace;
+            letter-spacing: 0.5px;
         }
 
-        .help {
-            color: #666;
+        /* ==================== CONTROL DOCK ==================== */
+
+        .dock {
+            flex-shrink: 0;
+            background: var(--glass);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border-top: 1px solid var(--border);
+            padding: 14px 18px calc(18px + env(safe-area-inset-bottom));
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .dock-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* Mode toggle pill */
+        .mode-toggle {
+            display: flex;
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 100px;
+            padding: 3px;
+            border: 1px solid var(--border);
+        }
+        .mode-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-dim);
+            padding: 7px 18px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.72rem;
+            letter-spacing: 1.5px;
+            cursor: pointer;
+            border-radius: 100px;
+            transition: all 0.25s;
+        }
+        .mode-btn.active {
+            background: var(--primary);
+            color: #000;
+            box-shadow: 0 0 16px rgba(0, 243, 255, 0.5);
+            font-weight: 700;
+        }
+
+        /* Stats strip */
+        .stats {
+            display: flex;
+            gap: 14px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.72rem;
+            letter-spacing: 1px;
+        }
+        .stat-item { color: #888; }
+        .stat-item b { color: var(--gold); font-weight: 700; margin-left: 4px; }
+
+        /* ==================== VERTICAL SLIDERS ==================== */
+
+        .sliders {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 0 2px;
+        }
+
+        .vslider {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            max-width: 90px;
+        }
+
+        .vslider-track-wrap {
+            position: relative;
+            height: min(220px, 26vh);
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* Vertical range slider using writing-mode trick (modern browsers incl. iOS Safari 15+) */
+        input[type=range].vslider-input {
+            appearance: slider-vertical;           /* legacy fallback */
+            -webkit-appearance: slider-vertical;
+            writing-mode: vertical-lr;
+            direction: rtl;
+            width: 34px;
+            height: 100%;
+            background: transparent;
+            outline: none;
+            cursor: grab;
+            margin: 0;
+            padding: 0;
+        }
+        input[type=range].vslider-input:active { cursor: grabbing; }
+
+        /* Track background uses CSS variable updated from JS */
+        input[type=range].vslider-input::-webkit-slider-runnable-track {
+            width: 22px;
+            height: 100%;
+            border-radius: 12px;
+            background: var(--track-bg, #333);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.45);
+        }
+        input[type=range].vslider-input::-moz-range-track {
+            width: 22px;
+            height: 100%;
+            border-radius: 12px;
+            background: var(--track-bg, #333);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.45);
+        }
+
+        input[type=range].vslider-input::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 35% 35%, #fff, #d8d8d8);
+            border: 2px solid rgba(0, 0, 0, 0.4);
+            box-shadow:
+                0 0 0 2px rgba(255, 255, 255, 0.9),
+                0 4px 14px rgba(0, 0, 0, 0.7),
+                inset 0 -2px 4px rgba(0, 0, 0, 0.15);
+            cursor: grab;
+            transition: transform 0.12s;
+            margin-left: -5px;   /* center on 22px track */
+        }
+        input[type=range].vslider-input::-moz-range-thumb {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 35% 35%, #fff, #d8d8d8);
+            border: 2px solid rgba(0, 0, 0, 0.4);
+            box-shadow:
+                0 0 0 2px rgba(255, 255, 255, 0.9),
+                0 4px 14px rgba(0, 0, 0, 0.7);
+            cursor: grab;
+        }
+        input[type=range].vslider-input:active::-webkit-slider-thumb {
+            transform: scale(1.12);
+        }
+
+        .vslider-label {
+            display: flex;
+            align-items: baseline;
+            gap: 6px;
+            font-family: 'Orbitron', sans-serif;
+            letter-spacing: 1px;
+        }
+        .vslider-name {
             font-size: 0.7rem;
-            text-align: center;
-            margin-top: 1rem;
-            font-style: italic;
+            color: #aaa;
+        }
+        .vslider-value {
+            font-family: monospace;
+            font-size: 1.05rem;
+            color: var(--primary);
+            min-width: 34px;
+            text-align: left;
+            font-weight: 700;
         }
 
-        @media (max-width: 420px) {
-            h1 { font-size: 1.6rem; }
-            .comparison { height: 150px; }
-            .result-score { font-size: 2rem; }
+        /* ==================== ACTIONS ==================== */
+
+        .actions {
+            display: flex;
+            gap: 10px;
+        }
+        .btn {
+            flex: 1;
+            background: transparent;
+            border: 1.5px solid var(--primary);
+            color: var(--primary);
+            padding: 13px 0;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.85rem;
+            letter-spacing: 2px;
+            font-weight: 700;
+            cursor: pointer;
+            border-radius: 10px;
+            transition: all 0.2s;
+        }
+        .btn:active:not(:disabled) { transform: scale(0.97); }
+        .btn.primary {
+            background: var(--primary);
+            color: #000;
+            box-shadow: 0 0 18px rgba(0, 243, 255, 0.45);
+        }
+        .btn.secondary {
+            border-color: var(--secondary);
+            color: var(--secondary);
+        }
+        .btn.secondary:not(:disabled) {
+            background: var(--secondary);
+            color: #fff;
+            box-shadow: 0 0 18px rgba(255, 0, 85, 0.5);
+        }
+        .btn:disabled {
+            opacity: 0.28;
+            cursor: not-allowed;
+            background: transparent;
+            color: #666;
+            border-color: #444;
+            box-shadow: none;
+        }
+
+        @media (max-height: 650px) {
+            .vslider-track-wrap { height: 170px; }
+            .dock { padding: 10px 14px calc(12px + env(safe-area-inset-bottom)); gap: 9px; }
+            .result-score { font-size: 2.8rem; }
         }
     </style>
 </head>
 <body>
-    <h1>COLOR MATCH</h1>
-    <p class="subtitle">調整滑桿，讓右側顏色與左側一致 · 無需記憶</p>
-
-    <div class="game">
-        <div class="comparison">
-            <div class="swatch" id="target-swatch">
-                <div class="swatch-label">目標 TARGET</div>
-                <div class="swatch-hex" id="target-hex" style="display:none;"></div>
+    <div class="app">
+        <!-- Color comparison stage -->
+        <div class="stage">
+            <div class="swatch target" id="target-swatch">
+                <span class="corner-label">TARGET</span>
+                <span class="corner-hex" id="target-hex"></span>
             </div>
-            <div class="swatch" id="player-swatch">
-                <div class="swatch-label">你的 YOURS</div>
-                <div class="swatch-hex" id="player-hex"></div>
+            <div class="swatch player" id="player-swatch">
+                <span class="corner-label">YOURS</span>
+                <span class="corner-hex" id="player-hex"></span>
             </div>
-            <div class="comparison-divider"></div>
-        </div>
+            <div class="divider"></div>
 
-        <div class="mode-toggle">
-            <button class="mode-btn active" data-mode="HSL">HSL</button>
-            <button class="mode-btn" data-mode="RGB">RGB</button>
-        </div>
-
-        <div id="sliders"></div>
-
-        <div class="controls">
-            <button class="btn" id="submit-btn">提交 / SUBMIT</button>
-            <button class="btn secondary" id="next-btn" disabled>下一輪 / NEXT</button>
-        </div>
-
-        <div class="result" id="result">
-            <div class="result-score" id="result-score">--</div>
-            <div class="result-grade" id="result-grade"></div>
-            <div class="result-detail" id="result-detail"></div>
-        </div>
-
-        <div class="score-panel">
-            <div class="stat">
-                <div class="stat-label">回合</div>
-                <div class="stat-value" id="stat-round">1</div>
-            </div>
-            <div class="stat">
-                <div class="stat-label">總分</div>
-                <div class="stat-value" id="stat-total">0</div>
-            </div>
-            <div class="stat">
-                <div class="stat-label">平均</div>
-                <div class="stat-value" id="stat-avg">--</div>
+            <div class="result-overlay" id="result-overlay">
+                <div class="result-score"><span id="result-score">--</span><span class="result-score-suffix">分</span></div>
+                <div class="result-grade" id="result-grade"></div>
+                <div class="result-detail" id="result-detail"></div>
             </div>
         </div>
 
-        <p class="help">提示：HSL 較直覺（色相/飽和/亮度），RGB 適合微調</p>
+        <!-- Control dock -->
+        <div class="dock">
+            <div class="dock-header">
+                <div class="mode-toggle">
+                    <button class="mode-btn active" data-mode="HSL">HSL</button>
+                    <button class="mode-btn" data-mode="RGB">RGB</button>
+                </div>
+                <div class="stats">
+                    <span class="stat-item">R<b id="stat-round">1</b></span>
+                    <span class="stat-item">T<b id="stat-total">0</b></span>
+                    <span class="stat-item">A<b id="stat-avg">--</b></span>
+                </div>
+            </div>
+
+            <div class="sliders" id="sliders"></div>
+
+            <div class="actions">
+                <button class="btn primary" id="submit-btn">SUBMIT</button>
+                <button class="btn secondary" id="next-btn" disabled>NEXT</button>
+            </div>
+        </div>
     </div>
 
     <script>
     (function () {
-        /* ---------- Color math ---------- */
+        /* ================= Color math ================= */
 
-        function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+        const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
-        function rgbToHex([r, g, b]) {
-            return '#' + [r, g, b].map(c => clamp(Math.round(c), 0, 255).toString(16).padStart(2, '0')).join('').toUpperCase();
-        }
+        const rgbToHex = ([r, g, b]) =>
+            '#' + [r, g, b].map(c => clamp(Math.round(c), 0, 255).toString(16).padStart(2, '0')).join('').toUpperCase();
 
         function rgbToHsl(r, g, b) {
             r /= 255; g /= 255; b /= 255;
@@ -423,14 +468,13 @@
             ];
         }
 
-        // sRGB -> Lab (D65), used for perceptual Delta E scoring
+        // sRGB -> Lab (D65) for ΔE
         function rgbToLab(r, g, b) {
             const toLinear = c => {
                 c /= 255;
                 return c > 0.04045 ? Math.pow((c + 0.055) / 1.055, 2.4) : c / 12.92;
             };
             const R = toLinear(r), G = toLinear(g), B = toLinear(b);
-            // D65 sRGB matrix
             let X = (R * 0.4124564 + G * 0.3575761 + B * 0.1804375) / 0.95047;
             let Y = (R * 0.2126729 + G * 0.7151522 + B * 0.0721750) / 1.00000;
             let Z = (R * 0.0193339 + G * 0.1191920 + B * 0.9503041) / 1.08883;
@@ -438,15 +482,9 @@
             const fx = f(X), fy = f(Y), fz = f(Z);
             return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)];
         }
+        const deltaE = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 
-        function deltaE(lab1, lab2) {
-            const dL = lab1[0] - lab2[0];
-            const da = lab1[1] - lab2[1];
-            const db = lab1[2] - lab2[2];
-            return Math.sqrt(dL * dL + da * da + db * db);
-        }
-
-        /* ---------- Game state ---------- */
+        /* ================= State ================= */
 
         let mode = 'HSL';
         let targetRGB = [0, 0, 0];
@@ -455,54 +493,60 @@
         let totalScore = 0;
         let submitted = false;
 
-        const slidersEl = document.getElementById('sliders');
-        const targetEl = document.getElementById('target-swatch');
-        const playerEl = document.getElementById('player-swatch');
-        const targetHexEl = document.getElementById('target-hex');
-        const playerHexEl = document.getElementById('player-hex');
-        const submitBtn = document.getElementById('submit-btn');
-        const nextBtn = document.getElementById('next-btn');
-        const resultEl = document.getElementById('result');
-        const resultScoreEl = document.getElementById('result-score');
-        const resultGradeEl = document.getElementById('result-grade');
-        const resultDetailEl = document.getElementById('result-detail');
-        const statRound = document.getElementById('stat-round');
-        const statTotal = document.getElementById('stat-total');
-        const statAvg = document.getElementById('stat-avg');
+        const $ = id => document.getElementById(id);
+        const slidersEl = $('sliders');
+        const targetEl = $('target-swatch');
+        const playerEl = $('player-swatch');
+        const targetHexEl = $('target-hex');
+        const playerHexEl = $('player-hex');
+        const submitBtn = $('submit-btn');
+        const nextBtn = $('next-btn');
+        const resultEl = $('result-overlay');
+        const resultScoreEl = $('result-score');
+        const resultGradeEl = $('result-grade');
+        const resultDetailEl = $('result-detail');
+        const statRound = $('stat-round');
+        const statTotal = $('stat-total');
+        const statAvg = $('stat-avg');
 
-        /* ---------- Sliders ---------- */
+        /* ================= Sliders ================= */
 
-        const SLIDER_DEFS = {
+        const DEFS = {
             RGB: [
-                { key: 'R', label: 'R 紅', min: 0, max: 255 },
-                { key: 'G', label: 'G 綠', min: 0, max: 255 },
-                { key: 'B', label: 'B 藍', min: 0, max: 255 }
+                { key: 'R', label: 'R', min: 0, max: 255 },
+                { key: 'G', label: 'G', min: 0, max: 255 },
+                { key: 'B', label: 'B', min: 0, max: 255 }
             ],
             HSL: [
-                { key: 'H', label: 'H 色相', min: 0, max: 360 },
-                { key: 'S', label: 'S 飽和', min: 0, max: 100 },
-                { key: 'L', label: 'L 亮度', min: 0, max: 100 }
+                { key: 'H', label: 'H', min: 0, max: 360 },
+                { key: 'S', label: 'S', min: 0, max: 100 },
+                { key: 'L', label: 'L', min: 0, max: 100 }
             ]
         };
 
         function buildSliders() {
             slidersEl.innerHTML = '';
-            const defs = SLIDER_DEFS[mode];
-            const values = getCurrentSliderValues();
+            const defs = DEFS[mode];
+            const vals = getCurrentSliderValues();
             defs.forEach((def, i) => {
-                const group = document.createElement('div');
-                group.className = 'slider-group';
-                group.innerHTML = `
-                    <div class="slider-label">
-                        <span class="slider-name">${def.label}</span>
-                        <span class="slider-value" id="sv-${def.key}">${values[i]}</span>
+                const col = document.createElement('div');
+                col.className = 'vslider';
+                col.innerHTML = `
+                    <div class="vslider-track-wrap">
+                        <input type="range" class="vslider-input"
+                            id="sl-${def.key}" data-key="${def.key}"
+                            min="${def.min}" max="${def.max}" value="${vals[i]}">
                     </div>
-                    <input type="range" id="sl-${def.key}" min="${def.min}" max="${def.max}" value="${values[i]}">
+                    <div class="vslider-label">
+                        <span class="vslider-name">${def.label}</span>
+                        <span class="vslider-value" id="sv-${def.key}">${vals[i]}</span>
+                    </div>
                 `;
-                slidersEl.appendChild(group);
-                const input = group.querySelector('input');
+                slidersEl.appendChild(col);
+                const input = col.querySelector('input');
                 input.addEventListener('input', () => onSliderInput(def.key, parseInt(input.value, 10)));
             });
+            refreshSliderTracks();
         }
 
         function getCurrentSliderValues() {
@@ -520,8 +564,41 @@
                 cur[idx] = value;
                 playerRGB = hslToRgb(cur[0], cur[1], cur[2]);
             }
-            document.getElementById('sv-' + key).textContent = value;
+            $('sv-' + key).textContent = value;
             updatePlayerSwatch();
+            refreshSliderTracks();
+        }
+
+        /**
+         * Build gradient for each vertical slider that represents the color the
+         * player would get at that slider position, given the current values of
+         * the other sliders. "to top" because writing-mode: vertical-lr +
+         * direction: rtl means min is at the bottom.
+         */
+        function refreshSliderTracks() {
+            const [r, g, b] = playerRGB;
+            if (mode === 'HSL') {
+                const [h, s, l] = rgbToHsl(r, g, b);
+                // H: full rainbow at current S, L
+                const huePts = [];
+                for (let i = 0; i <= 360; i += 30) {
+                    huePts.push(`hsl(${i}, ${s}%, ${l}%)`);
+                }
+                setTrack('H', `linear-gradient(to top, ${huePts.join(',')})`);
+                // S: gray -> full saturation at current H, L
+                setTrack('S', `linear-gradient(to top, hsl(${h}, 0%, ${l}%), hsl(${h}, 100%, ${l}%))`);
+                // L: black -> full color -> white
+                setTrack('L', `linear-gradient(to top, hsl(${h}, ${s}%, 0%), hsl(${h}, ${s}%, 50%), hsl(${h}, ${s}%, 100%))`);
+            } else {
+                setTrack('R', `linear-gradient(to top, rgb(0, ${g}, ${b}), rgb(255, ${g}, ${b}))`);
+                setTrack('G', `linear-gradient(to top, rgb(${r}, 0, ${b}), rgb(${r}, 255, ${b}))`);
+                setTrack('B', `linear-gradient(to top, rgb(${r}, ${g}, 0), rgb(${r}, ${g}, 255))`);
+            }
+        }
+
+        function setTrack(key, gradient) {
+            const el = $('sl-' + key);
+            if (el) el.style.setProperty('--track-bg', gradient);
         }
 
         function updatePlayerSwatch() {
@@ -529,40 +606,32 @@
             playerEl.style.background = hex;
             playerHexEl.textContent = hex;
         }
-
         function updateTargetSwatch() {
             targetEl.style.background = rgbToHex(targetRGB);
         }
 
-        /* ---------- Rounds & scoring ---------- */
+        /* ================= Rounds & scoring ================= */
 
         function randomTarget() {
-            // Avoid pure black / pure white for more interesting matches
             const h = Math.floor(Math.random() * 360);
-            const s = 30 + Math.floor(Math.random() * 70);   // 30-100
-            const l = 20 + Math.floor(Math.random() * 60);   // 20-80
+            const s = 30 + Math.floor(Math.random() * 70);
+            const l = 20 + Math.floor(Math.random() * 60);
             targetRGB = hslToRgb(h, s, l);
         }
-
-        function resetPlayerColor() {
-            playerRGB = [128, 128, 128];
-        }
+        const resetPlayerColor = () => { playerRGB = [128, 128, 128]; };
 
         function computeScore() {
             const dE = deltaE(rgbToLab(...targetRGB), rgbToLab(...playerRGB));
-            // dE ~0 = perfect, ~2 not perceptible, ~10 clearly different, >50 very far
-            // Score: 100 - dE, clamped. This rewards precision and is perceptual.
-            const score = Math.max(0, Math.round(100 - dE));
-            return { score, dE };
+            return { score: Math.max(0, Math.round(100 - dE)), dE };
         }
 
         function gradeFor(score) {
-            if (score >= 98) return { text: '完美 PERFECT', color: '#00ffa6' };
-            if (score >= 92) return { text: '優秀 EXCELLENT', color: '#00f3ff' };
-            if (score >= 82) return { text: '不錯 GREAT', color: '#7af542' };
-            if (score >= 70) return { text: '還行 GOOD', color: '#ffaa00' };
-            if (score >= 50) return { text: '再加油 OKAY', color: '#ff8844' };
-            return { text: '差很多 MISS', color: '#ff0055' };
+            if (score >= 98) return { text: 'PERFECT 完美', color: '#00ffa6' };
+            if (score >= 92) return { text: 'EXCELLENT 優秀', color: '#00f3ff' };
+            if (score >= 82) return { text: 'GREAT 不錯', color: '#7af542' };
+            if (score >= 70) return { text: 'GOOD 還行', color: '#ffaa00' };
+            if (score >= 50) return { text: 'OKAY 再加油', color: '#ff8844' };
+            return { text: 'MISS 差很多', color: '#ff0055' };
         }
 
         function submit() {
@@ -572,25 +641,24 @@
             totalScore += score;
             const grade = gradeFor(score);
 
-            resultScoreEl.textContent = score + ' 分';
-            resultScoreEl.style.color = grade.color;
-            resultScoreEl.style.textShadow = `0 0 12px ${grade.color}`;
+            resultScoreEl.textContent = score;
+            resultScoreEl.parentElement.style.color = grade.color;
             resultGradeEl.textContent = grade.text;
             resultGradeEl.style.color = grade.color;
-            resultDetailEl.innerHTML =
-                `目標 ${rgbToHex(targetRGB)} · 你的 ${rgbToHex(playerRGB)} · ΔE ${dE.toFixed(2)}`;
+            resultDetailEl.innerHTML = `${rgbToHex(targetRGB)} · ${rgbToHex(playerRGB)} · ΔE ${dE.toFixed(2)}`;
             resultEl.classList.add('show');
-            resultEl.style.borderColor = grade.color;
+            resultEl.style.borderColor = grade.color + '55';
 
-            // Reveal target hex
             targetHexEl.textContent = rgbToHex(targetRGB);
-            targetHexEl.style.display = '';
+            targetHexEl.classList.add('reveal');
 
             statTotal.textContent = totalScore;
             statAvg.textContent = Math.round(totalScore / round);
 
             submitBtn.disabled = true;
             nextBtn.disabled = false;
+
+            if (navigator.vibrate) navigator.vibrate(score >= 90 ? [20, 40, 40] : 15);
         }
 
         function nextRound() {
@@ -602,8 +670,7 @@
             updatePlayerSwatch();
             buildSliders();
             resultEl.classList.remove('show');
-            resultEl.style.borderColor = 'transparent';
-            targetHexEl.style.display = 'none';
+            targetHexEl.classList.remove('reveal');
             targetHexEl.textContent = '';
             submitBtn.disabled = false;
             nextBtn.disabled = true;
@@ -619,7 +686,7 @@
             buildSliders();
         }
 
-        /* ---------- Init ---------- */
+        /* ================= Init ================= */
 
         document.querySelectorAll('.mode-btn').forEach(btn => {
             btn.addEventListener('click', () => switchMode(btn.dataset.mode));
@@ -627,11 +694,9 @@
         submitBtn.addEventListener('click', submit);
         nextBtn.addEventListener('click', nextRound);
 
-        // Keyboard: Enter = submit / next
         document.addEventListener('keydown', e => {
             if (e.key === 'Enter') {
-                if (!submitted) submit();
-                else nextRound();
+                if (!submitted) submit(); else nextRound();
             }
         });
 
