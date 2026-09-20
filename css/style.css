@@ -93,6 +93,10 @@ h1 { font-family: 'Orbitron', sans-serif; color: var(--primary); text-shadow: 0 
 .part-tag { font-size: 0.58rem; color: #789; }
 .part-price { font-size: 0.6rem; color: var(--gold); margin-top: 2px; }
 .part-lock { position: absolute; top: 4px; right: 6px; font-size: 0.7rem; }
+.part-card.legend { border-color: rgba(255,170,85,0.45); background: linear-gradient(180deg, rgba(255,140,40,0.08), rgba(255,255,255,0.03)); }
+.part-card.legend.active { border-color: var(--primary); }
+.part-card.legend .part-tag { color: #e9a060; }
+.part-badge { position: absolute; top: 3px; left: 6px; font-size: 0.7rem; color: #ffaa55; text-shadow: 0 0 6px rgba(255,170,85,0.8); }
 
 .stats-panel { background: rgba(0,0,0,0.4); border: 1px solid #223; border-radius: 12px; padding: 10px 12px; margin-top: 4px; }
 .stat-line { display: flex; align-items: center; gap: 8px; margin: 5px 0; font-size: 0.72rem; color: #aab; }

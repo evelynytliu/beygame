@@ -149,12 +149,16 @@ function buildTopMesh(build, opts) {
     // --- tip ---
     const tipDef = stats.tip;
     let tipMesh;
-    const tipMat = new THREE.MeshStandardMaterial({ color: tipDef.id === 'rubber' ? 0xcc4422 : 0x888899, metalness: 0.6, roughness: 0.35 });
+    const tipColor = tipDef.id === 'rubber' ? 0xcc4422 : tipDef.id === 'drill' ? 0xddaa33 : tipDef.id === 'magnet' ? 0x4466ee : 0x888899;
+    const tipMat = new THREE.MeshStandardMaterial({ color: tipColor, metalness: 0.6, roughness: 0.35 });
     if (tipDef.shape === 'needle') tipMesh = new THREE.Mesh(new THREE.ConeGeometry(0.35, 1.1, 16), tipMat);
     else if (tipDef.shape === 'ball') tipMesh = new THREE.Mesh(new THREE.SphereGeometry(0.45, 16, 12), tipMat);
     else if (tipDef.shape === 'flat') tipMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 0.5, 20), tipMat);
+    else if (tipDef.shape === 'drill') tipMesh = new THREE.Mesh(new THREE.ConeGeometry(0.5, 1.2, 6), tipMat);
+    else if (tipDef.shape === 'magnet') tipMesh = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.22, 10, 20), tipMat);
     else tipMesh = new THREE.Mesh(new THREE.ConeGeometry(0.55, 0.9, 16), tipMat);
-    if (tipDef.shape === 'needle') tipMesh.rotation.x = Math.PI;
+    if (tipDef.shape === 'needle' || tipDef.shape === 'drill') tipMesh.rotation.x = Math.PI;
+    if (tipDef.shape === 'magnet') tipMesh.rotation.x = Math.PI / 2;
     tipMesh.position.y = 0.45;
     g.add(tipMesh);
 
@@ -166,10 +170,14 @@ function buildTopMesh(build, opts) {
     base.position.y = 1.2; g.add(base);
 
     // --- weight ring ---
-    const wTube = stats.weight.id === 'light' ? 0.32 : stats.weight.id === 'std' ? 0.48 : 0.68;
+    const wTube = stats.weight.tube || 0.48;
+    const legendRing = stats.weight.tier === 'legend';
     const ring = new THREE.Mesh(
         new THREE.TorusGeometry(stats.radius * 0.52, wTube, 12, 48),
-        new THREE.MeshStandardMaterial({ color: 0xbb9944, metalness: 0.9, roughness: 0.25, emissive: 0x332200, emissiveIntensity: 0.3 })
+        new THREE.MeshStandardMaterial({
+            color: legendRing ? 0xdd6633 : 0xbb9944, metalness: 0.9, roughness: 0.25,
+            emissive: legendRing ? 0x551100 : 0x332200, emissiveIntensity: legendRing ? 0.5 : 0.3
+        })
     );
     ring.rotation.x = Math.PI / 2;
     ring.position.y = 1.75; g.add(ring);
@@ -426,10 +434,12 @@ const UI = {
                 const unlocked = Save.data.unlocked[cat].includes(p.id);
                 const active = Save.data.build[cat] === p.id;
                 const card = document.createElement('div');
-                card.className = 'part-card' + (active ? ' active' : '') + (unlocked ? '' : ' locked');
-                const icon = cat === 'blade' ? PartIcons.blade(p, active ? '#00f3ff' : '#8899aa')
+                const legend = p.tier === 'legend';
+                card.className = 'part-card' + (active ? ' active' : '') + (unlocked ? '' : ' locked') + (legend ? ' legend' : '');
+                const icon = cat === 'blade' ? PartIcons.blade(p, active ? '#00f3ff' : legend ? '#ffaa55' : '#8899aa')
                     : cat === 'weight' ? PartIcons.weight(p) : PartIcons.tip(p);
                 card.innerHTML = icon +
+                    (legend ? '<div class="part-badge">★</div>' : '') +
                     `<div class="part-name">${p.name}</div><div class="part-tag">${p.tag}</div>` +
                     (unlocked ? '' : `<div class="part-price">🪙 ${p.price}</div><div class="part-lock">🔒</div>`);
                 card.title = p.desc;
@@ -1145,8 +1155,9 @@ function physicsStep(frameScale) {
             e.spin *= 1 - 0.016 * impactSat * ((p.atk + 40) / (e.def + 90));
 
             // Burst gauge: attack vs defense (defense weighs heavily — burst is the attack-type win path)
-            e.burst += impactStr * ((p.atk + 25) / (e.def * 1.7 + 55)) * 11;
-            p.burst += impactStr * ((e.atk + 25) / (p.def * 1.7 + 55)) * 11;
+            // Tip burstMult (e.g. drill) boosts the burst damage its owner deals
+            e.burst += impactStr * ((p.atk + 25) / (e.def * 1.7 + 55)) * 11 * (p.tip.burstMult || 1);
+            p.burst += impactStr * ((e.atk + 25) / (p.def * 1.7 + 55)) * 11 * (e.tip.burstMult || 1);
             e.burst = Math.min(e.burst, e.burstMax);
             p.burst = Math.min(p.burst, p.burstMax);
 
