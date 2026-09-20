@@ -39,23 +39,53 @@ const PARTS = {
             atk: 14, def: 40, sta: 70, spd: 22,
             radius: 5.0, massMult: 1.15, price: 2000,
             desc: '外重環設計，超長續航'
+        },
+        // ---- 傳說級 (Legendary) ----
+        {
+            id: 'fang', name: '龍牙 FANG', tag: '傳說・攻擊', tier: 'legend', sides: 4, spikiness: 0.56,
+            atk: 82, def: 20, sta: 28, spd: 44,
+            radius: 5.5, massMult: 1.05, price: 3000,
+            desc: '四支龍牙巨刃，一擊粉碎對手'
+        },
+        {
+            id: 'aurora', name: '極光 AURORA', tag: '傳說・全能', tier: 'legend', sides: 8, spikiness: 0.26,
+            atk: 48, def: 42, sta: 44, spd: 38,
+            radius: 5.1, massMult: 1.05, price: 2600,
+            desc: '八角極光刃，攻守續航全面提升'
+        },
+        {
+            id: 'abyss', name: '深淵 ABYSS', tag: '傳說・持久', tier: 'legend', sides: 12, spikiness: 0.1,
+            atk: 26, def: 54, sta: 78, spd: 20,
+            radius: 5.0, massMult: 1.2, price: 2800,
+            desc: '深淵重刃，越轉越久，耐打不倒'
         }
     ],
     weight: [
         {
-            id: 'light', name: '輕量環', tag: '靈活', mass: 1.7,
+            id: 'light', name: '輕量環', tag: '靈活', mass: 1.7, tube: 0.32,
             atk: 0, def: 0, sta: 4, spd: 22, price: 0,
             desc: '輕巧靈活，加速快'
         },
         {
-            id: 'std', name: '標準環', tag: '均衡', mass: 2.4,
+            id: 'std', name: '標準環', tag: '均衡', mass: 2.4, tube: 0.48,
             atk: 8, def: 8, sta: 8, spd: 8, price: 0,
             desc: '標準配重'
         },
         {
-            id: 'heavy', name: '重裝環', tag: '重壓', mass: 3.4,
+            id: 'heavy', name: '重裝環', tag: '重壓', mass: 3.4, tube: 0.68,
             atk: 18, def: 20, sta: 10, spd: -14, price: 500,
             desc: '厚重金屬，撞擊沉重'
+        },
+        // ---- 傳說級 (Legendary) ----
+        {
+            id: 'alloy', name: '合金環', tag: '傳說・均衡', tier: 'legend', mass: 3.0, tube: 0.56,
+            atk: 12, def: 12, sta: 12, spd: 4, price: 1500,
+            desc: '航太合金，重卻不拖速度'
+        },
+        {
+            id: 'titan', name: '泰坦環', tag: '傳說・超重', tier: 'legend', mass: 4.3, tube: 0.8,
+            atk: 22, def: 24, sta: 10, spd: -22, price: 2000,
+            desc: '超重泰坦金屬，撞誰誰飛'
         }
     ],
     tip: [
@@ -82,6 +112,19 @@ const PARTS = {
             atk: 4, def: 30, sta: -14, spd: 4,
             centerBias: 1.2, drive: 0, grip: 1.0, knockResist: 0.45, price: 900,
             desc: '橡膠抓地，吸收衝擊'
+        },
+        // ---- 傳說級 (Legendary) ----
+        {
+            id: 'drill', name: '鑽頭軸', tag: '傳說・爆裂', tier: 'legend', shape: 'drill',
+            atk: 24, def: 6, sta: 4, spd: 22,
+            centerBias: 0.6, drive: 0.02, grip: 0.4, knockResist: 0.15, burstMult: 1.3, price: 1800,
+            desc: '鑽頭撕裂裝甲，爆裂傷害 +30%'
+        },
+        {
+            id: 'magnet', name: '磁吸軸', tag: '傳說・穩定', tier: 'legend', shape: 'magnet',
+            atk: 8, def: 20, sta: 16, spd: 8,
+            centerBias: 1.3, drive: 0, grip: 0.4, knockResist: 0.3, price: 1600,
+            desc: '磁吸抓地，攻守續航全面兼顧'
         }
     ]
 };
@@ -145,11 +188,14 @@ const PartIcons = {
         return `<svg viewBox="0 0 48 48"><polygon points="${pts.join(' ')}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linejoin="round"/><circle cx="24" cy="24" r="5" fill="${color}" opacity="0.5"/></svg>`;
     },
     weight: function(p) {
-        const t = p.id === 'light' ? 3 : p.id === 'std' ? 5.5 : 8.5;
-        return `<svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="16" fill="none" stroke="#ffaa00" stroke-width="${t}" opacity="0.8"/></svg>`;
+        const t = 3 + ((p.tube || 0.48) - 0.32) * 11.5;
+        const c = p.tier === 'legend' ? '#ff9955' : '#ffaa00';
+        return `<svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="16" fill="none" stroke="${c}" stroke-width="${t.toFixed(1)}" opacity="0.8"/></svg>`;
     },
     tip: function(p) {
-        const c = '#aa66ff';
+        const c = p.tier === 'legend' ? '#dd88ff' : '#aa66ff';
+        if (p.shape === 'drill') return `<svg viewBox="0 0 48 48"><path d="M14 10 L34 10 L30 22 L18 22 Z" fill="none" stroke="${c}" stroke-width="2.5"/><path d="M18 22 L30 22 L24 40 Z" fill="none" stroke="${c}" stroke-width="2.5" stroke-linejoin="round"/><path d="M20 27 L28 27 M21 31 L27 31 M22 35 L26 35" stroke="${c}" stroke-width="2"/></svg>`;
+        if (p.shape === 'magnet') return `<svg viewBox="0 0 48 48"><path d="M14 10 L34 10 L30 22 L18 22 Z" fill="none" stroke="${c}" stroke-width="2.5"/><path d="M17 24 L17 32 A7 7 0 0 0 31 32 L31 24" fill="none" stroke="${c}" stroke-width="3.5"/><path d="M15 24 L20 24 M28 24 L33 24" stroke="#ff4466" stroke-width="3"/></svg>`;
         if (p.shape === 'needle') return `<svg viewBox="0 0 48 48"><path d="M14 12 L34 12 L28 24 L24 40 L20 24 Z" fill="none" stroke="${c}" stroke-width="2.5" stroke-linejoin="round"/></svg>`;
         if (p.shape === 'ball') return `<svg viewBox="0 0 48 48"><path d="M14 10 L34 10 L30 24 L18 24 Z" fill="none" stroke="${c}" stroke-width="2.5"/><circle cx="24" cy="31" r="8" fill="none" stroke="${c}" stroke-width="2.5"/></svg>`;
         if (p.shape === 'flat') return `<svg viewBox="0 0 48 48"><path d="M14 10 L34 10 L31 26 L17 26 Z" fill="none" stroke="${c}" stroke-width="2.5"/><rect x="15" y="28" width="18" height="8" rx="2" fill="none" stroke="${c}" stroke-width="2.5"/></svg>`;

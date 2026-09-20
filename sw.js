@@ -1,5 +1,5 @@
 // Neon Spinner service worker — app-shell cache for offline play
-const CACHE = 'neon-spinner-v1';
+const CACHE = 'neon-spinner-v2';
 const ASSETS = [
     '.',
     'index.html',
