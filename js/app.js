@@ -923,8 +923,9 @@ function setupArenaTiltControls() {
         const touch = e.touches ? e.touches[0] : e;
         const cx = window.innerWidth / 2, cy = window.innerHeight / 2;
         const maxTilt = 0.006;
-        arenaTilt.x = ((touch.clientY - cy) / cy) * maxTilt;
-        arenaTilt.z = ((touch.clientX - cx) / cx) * maxTilt;
+        // Finger left/right -> world x (screen left/right); finger up/down -> world z (screen up/down)
+        arenaTilt.x = ((touch.clientX - cx) / cx) * maxTilt;
+        arenaTilt.z = ((touch.clientY - cy) / cy) * maxTilt;
         tiltActive = true;
     };
     const onEnd = () => { tiltTouchActive = false; tiltActive = false; arenaTilt.x = 0; arenaTilt.z = 0; };
@@ -968,8 +969,8 @@ function physicsStep(frameScale) {
     const tiltRing = document.getElementById('tilt-stamina-ring');
     if (tiltDot) {
         const maxOff = 20;
-        tiltDot.style.left = (50 + arenaTilt.z / 0.006 * maxOff) + '%';
-        tiltDot.style.top = (50 + arenaTilt.x / 0.006 * maxOff) + '%';
+        tiltDot.style.left = (50 + arenaTilt.x / 0.006 * maxOff) + '%';
+        tiltDot.style.top = (50 + arenaTilt.z / 0.006 * maxOff) + '%';
     }
     if (tiltRing) tiltRing.style.opacity = tiltStamina / 100;
 
@@ -1191,7 +1192,7 @@ function physicsStep(frameScale) {
     updateHudBars(p, e);
 
     // Arena tilt visual
-    if (arenaMesh) arenaMesh.rotation.z += (arenaTilt.z * 8 - arenaMesh.rotation.z) * 0.1;
+    if (arenaMesh) arenaMesh.rotation.z += (-arenaTilt.x * 8 - arenaMesh.rotation.z) * 0.1;
 
     // Ring out
     if (!safetyPhase) {
